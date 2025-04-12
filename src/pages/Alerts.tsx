@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { collection, query, orderBy, getDocs } from "firebase/firestore";
+import { collection, query, orderBy, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { Bell, Info, AlertTriangle, BookOpen, Image } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { demoAlerts, AlertItem } from "@/utils/alertsData";
+import { AlertItem } from "@/utils/alertsData";
 
 const AlertsPage = () => {
   const { userData } = useAuth();
@@ -35,9 +35,37 @@ const AlertsPage = () => {
           });
         }, 300);
 
-        // For now, use our shared demo alerts
-        // In a production app, you would fetch from Firestore
-        setAlerts(demoAlerts);
+        // Fetch real alerts from Firestore
+        const alertsRef = collection(db, "alerts");
+        const q = query(alertsRef, orderBy("createdAt", "desc"));
+        const querySnapshot = await getDocs(q);
+        
+        const fetchedAlerts: AlertItem[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          fetchedAlerts.push({
+            id: doc.id,
+            title: data.title,
+            description: data.description,
+            type: data.type,
+            moduleId: data.moduleId,
+            moduleName: data.moduleName,
+            createdAt: data.createdAt instanceof Timestamp 
+              ? data.createdAt.toDate() 
+              : new Date(),
+            imageUrl: data.imageUrl || getDefaultImageForType(data.type)
+          });
+        });
+        
+        setAlerts(fetchedAlerts);
+        
+        // If no alerts were found, use demo data as fallback
+        if (fetchedAlerts.length === 0) {
+          import("@/utils/alertsData").then(({ demoAlerts }) => {
+            setAlerts(demoAlerts);
+            console.log("Using demo alerts as fallback");
+          });
+        }
         
         // Simulate network delay
         setTimeout(() => {
@@ -47,11 +75,32 @@ const AlertsPage = () => {
         }, 1500);
       } catch (error) {
         console.error("Error fetching alerts:", error);
+        
+        // Fallback to demo data on error
+        import("@/utils/alertsData").then(({ demoAlerts }) => {
+          setAlerts(demoAlerts);
+          console.log("Error fetching alerts, using demo data");
+          setLoading(false);
+        });
       }
     };
     
     fetchAlerts();
   }, [userData]);
+
+  // Helper function to get default image based on alert type
+  const getDefaultImageForType = (type: string) => {
+    switch (type) {
+      case "test":
+        return "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=500&q=80";
+      case "exam":
+        return "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=500&q=80";
+      case "assignment":
+        return "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=500&q=80";
+      default:
+        return "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?auto=format&fit=crop&w=500&q=80";
+    }
+  };
 
   const filteredAlerts = filterType === "all" 
     ? alerts 

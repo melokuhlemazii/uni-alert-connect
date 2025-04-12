@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
@@ -37,12 +36,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Link } from "react-router-dom";
 
-// Define form schemas
+// Update the alert schema to include imageUrl
 const alertSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   type: z.enum(["general", "test", "exam", "assignment"]),
   moduleId: z.string().min(1, "Module is required"),
+  imageUrl: z.string().optional(),
 });
 
 const eventSchema = z.object({
@@ -92,7 +92,7 @@ const Admin = () => {
     setModules(modulesData);
   }, [userData, navigate]);
 
-  // Alert form
+  // Updated alert form with imageUrl
   const alertForm = useForm<z.infer<typeof alertSchema>>({
     resolver: zodResolver(alertSchema),
     defaultValues: {
@@ -100,6 +100,7 @@ const Admin = () => {
       description: "",
       type: "general",
       moduleId: "",
+      imageUrl: "",
     },
   });
 
@@ -121,9 +122,13 @@ const Admin = () => {
       const selectedModule = modules.find(m => m.id === values.moduleId);
       if (!selectedModule) return;
       
+      // Get a default image URL based on alert type if none provided
+      const imageUrl = values.imageUrl || getDefaultImageForType(values.type);
+      
       // Add the alert to Firestore
       await addDoc(collection(db, "alerts"), {
         ...values,
+        imageUrl,
         moduleName: selectedModule.name,
         moduleCode: selectedModule.code,
         createdAt: serverTimestamp(),
@@ -178,6 +183,20 @@ const Admin = () => {
         description: "Failed to add the event",
         variant: "destructive",
       });
+    }
+  };
+  
+  // Helper function to get default image based on alert type
+  const getDefaultImageForType = (type: string) => {
+    switch (type) {
+      case "test":
+        return "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=500&q=80";
+      case "exam":
+        return "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=500&q=80";
+      case "assignment":
+        return "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=500&q=80";
+      default:
+        return "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?auto=format&fit=crop&w=500&q=80";
     }
   };
 
@@ -391,6 +410,27 @@ const Admin = () => {
                         </FormControl>
                         <FormDescription>
                           Provide detailed information about the alert
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={alertForm.control}
+                    name="imageUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Image URL (Optional)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="https://example.com/image.jpg" 
+                            {...field} 
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Add an image URL to display with the alert. A default image will be used if left empty.
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

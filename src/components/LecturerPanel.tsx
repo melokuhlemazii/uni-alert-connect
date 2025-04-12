@@ -3,9 +3,12 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Bell, Calendar, Users } from "lucide-react";
+import { MessageSquare, Bell, Calendar, Users, Eye } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const LecturerPanel = () => {
+  const { toast } = useToast();
+  
   const lecturerActions = [
     {
       title: "Post Alert",
@@ -13,7 +16,13 @@ const LecturerPanel = () => {
       icon: <Bell className="h-10 w-10 text-indigo-600" />,
       link: "/admin?tab=alerts",
       buttonText: "Create Alert",
-      image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=500&q=80"
+      image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=500&q=80",
+      onClick: () => {
+        toast({
+          title: "Alert Creation",
+          description: "Create and post announcements to your students",
+        });
+      }
     },
     {
       title: "Add Event",
@@ -21,15 +30,27 @@ const LecturerPanel = () => {
       icon: <Calendar className="h-10 w-10 text-indigo-600" />,
       link: "/admin?tab=events",
       buttonText: "Add Event",
-      image: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=500&q=80"
+      image: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=500&q=80",
+      onClick: () => {
+        toast({
+          title: "Event Creation",
+          description: "Schedule academic events for your courses",
+        });
+      }
     },
     {
-      title: "View Comments",
-      description: "See student comments and respond to questions",
-      icon: <MessageSquare className="h-10 w-10 text-indigo-600" />,
+      title: "View All Alerts",
+      description: "See all alerts and respond to student comments",
+      icon: <Eye className="h-10 w-10 text-indigo-600" />,
       link: "/alerts",
       buttonText: "View Alerts",
-      image: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=500&q=80"
+      image: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=500&q=80",
+      onClick: () => {
+        toast({
+          title: "View Alerts",
+          description: "Access and respond to all posted alerts",
+        });
+      }
     }
   ];
 
@@ -60,7 +81,11 @@ const LecturerPanel = () => {
               <CardDescription className="text-center">{action.description}</CardDescription>
             </CardHeader>
             <CardFooter className="flex justify-center">
-              <Button asChild className="bg-indigo-600 hover:bg-indigo-700">
+              <Button 
+                asChild 
+                className="bg-indigo-600 hover:bg-indigo-700"
+                onClick={action.onClick}
+              >
                 <Link to={action.link}>{action.buttonText}</Link>
               </Button>
             </CardFooter>

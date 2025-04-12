@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, Timestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -64,7 +64,9 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
         fetchedComments.push({
           id: doc.id,
           text: data.text,
-          createdAt: data.createdAt?.toDate() || new Date(),
+          createdAt: data.createdAt instanceof Timestamp 
+            ? data.createdAt.toDate() 
+            : new Date(),
           createdBy: data.createdBy,
           createdByName: data.createdByName || "Anonymous"
         });
@@ -98,7 +100,14 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newComment.trim() || !userData) return;
+    if (!newComment.trim() || !userData) {
+      toast({
+        title: "Error",
+        description: "Please log in and enter a comment",
+        variant: "destructive"
+      });
+      return;
+    }
     
     try {
       setIsSubmitting(true);
@@ -151,15 +160,16 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
         <>
           <form onSubmit={handleSubmitComment} className="flex gap-2">
             <Textarea
-              placeholder="Add a comment..."
+              placeholder={userData ? "Add a comment..." : "Please log in to comment"}
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               className="min-h-20"
+              disabled={!userData}
             />
             <Button 
               type="submit" 
               size="icon"
-              disabled={!newComment.trim() || isSubmitting}
+              disabled={!newComment.trim() || isSubmitting || !userData}
               className="self-end"
             >
               <Send className="h-4 w-4" />
