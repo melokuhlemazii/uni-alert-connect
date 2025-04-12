@@ -4,6 +4,7 @@ import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import AlertComments from "@/components/AlertComments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -149,35 +150,38 @@ const AlertsPage = () => {
           ) : filteredAlerts.length > 0 ? (
             <div className="space-y-4">
               {filteredAlerts.map(alert => (
-                <Alert key={alert.id} className="relative">
-                  <div className="absolute right-4 top-4 text-xs text-muted-foreground">
-                    {format(alert.createdAt, "MMM d, yyyy")}
-                  </div>
-                  <div className="flex items-start gap-2">
-                    {getAlertIcon(alert.type)}
-                    <div>
-                      <AlertTitle>
-                        {alert.title} • {alert.moduleName}
-                      </AlertTitle>
-                      <AlertDescription className="mt-1">
-                        {alert.description}
-                      </AlertDescription>
-                      <div className="mt-2">
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          alert.type === "exam" 
-                            ? "bg-red-100 text-red-800" 
-                            : alert.type === "assignment" 
-                              ? "bg-yellow-100 text-yellow-800" 
-                              : alert.type === "test"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-gray-100 text-gray-800"
-                        }`}>
-                          {alert.type.charAt(0).toUpperCase() + alert.type.slice(1)}
-                        </span>
+                <div key={alert.id} className="space-y-2">
+                  <Alert className="relative">
+                    <div className="absolute right-4 top-4 text-xs text-muted-foreground">
+                      {format(alert.createdAt, "MMM d, yyyy")}
+                    </div>
+                    <div className="flex items-start gap-2">
+                      {getAlertIcon(alert.type)}
+                      <div>
+                        <AlertTitle>
+                          {alert.title} • {alert.moduleName}
+                        </AlertTitle>
+                        <AlertDescription className="mt-1">
+                          {alert.description}
+                        </AlertDescription>
+                        <div className="mt-2">
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            alert.type === "exam" 
+                              ? "bg-red-100 text-red-800" 
+                              : alert.type === "assignment" 
+                                ? "bg-yellow-100 text-yellow-800" 
+                                : alert.type === "test"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-gray-100 text-gray-800"
+                          }`}>
+                            {alert.type.charAt(0).toUpperCase() + alert.type.slice(1)}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Alert>
+                  </Alert>
+                  <AlertComments alertId={alert.id} />
+                </div>
               ))}
             </div>
           ) : (

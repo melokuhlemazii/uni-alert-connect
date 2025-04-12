@@ -8,7 +8,7 @@ import {
   signOut,
   updateProfile
 } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -19,6 +19,7 @@ interface UserData {
   email: string | null;
   displayName: string | null;
   role: UserRole;
+  createdAt?: Date;
 }
 
 interface AuthContextType {
@@ -28,6 +29,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
+  updateUserRole: (uid: string, newRole: UserRole) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,17 +41,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       
       if (user) {
-        // Create basic userData from auth user
-        setUserData({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          role: "student" // Default role, will be overridden if stored in Firestore
-        });
+        try {
+          // Fetch user data from Firestore
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as UserData;
+            setUserData(userData);
+          } else {
+            // Create basic userData from auth user if not in Firestore
+            setUserData({
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              role: "student" // Default role
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          setUserData({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            role: "student" // Default role
+          });
+        }
       } else {
         setUserData(null);
       }
@@ -132,8 +151,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // New function to update user role (admin only)
+  const updateUserRole = async (uid: string, newRole: UserRole) => {
+    try {
+      // Check if current user is admin
+      if (userData?.role !== "admin") {
+        throw new Error("Only admins can update user roles");
+      }
+
+      // Update user role in Firestore
+      await setDoc(doc(db, "users", uid), { role: newRole }, { merge: true });
+      
+      toast({
+        title: "Role updated",
+        description: `User role has been updated to ${newRole}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Update failed",
+        description: (error as Error).message,
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, userData, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      userData, 
+      loading, 
+      login, 
+      register, 
+      logout,
+      updateUserRole 
+    }}>
       {children}
     </AuthContext.Provider>
   );

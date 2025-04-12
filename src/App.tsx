@@ -17,6 +17,7 @@ import Alerts from "./pages/Alerts";
 import Modules from "./pages/Modules";
 import Calendar from "./pages/Calendar";
 import Admin from "./pages/Admin";
+import UserManagement from "./pages/UserManagement";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
@@ -61,6 +62,11 @@ const App = () => (
             <Route path="/admin" element={
               <ProtectedRoute>
                 <Admin />
+              </ProtectedRoute>
+            } />
+            <Route path="/usermanagement" element={
+              <ProtectedRoute>
+                <UserManagement />
               </ProtectedRoute>
             } />
             <Route path="/profile" element={

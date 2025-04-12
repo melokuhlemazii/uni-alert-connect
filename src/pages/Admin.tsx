@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useNavigate, useLocation } from "react-router-dom";
+import { collection, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import LecturerPanel from "@/components/LecturerPanel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -29,11 +30,12 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { Bell, CalendarIcon, Plus } from "lucide-react";
+import { Bell, CalendarIcon, Plus, Users, Shield } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Link } from "react-router-dom";
 
 // Define form schemas
 const alertSchema = z.object({
@@ -54,13 +56,24 @@ const eventSchema = z.object({
 const Admin = () => {
   const { userData } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [modules, setModules] = useState<{id: string, name: string, code: string}[]>([]);
+  const [activeTab, setActiveTab] = useState("overview");
   
-  // For demo, we'll use the same modules from the Modules page
+  // Parse URL query parameters to get the active tab
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [location]);
+  
+  // Check user role and fetch modules
   useEffect(() => {
     // Check if user is admin or lecturer
-    if (userData?.role !== "admin" && userData?.role !== "lecturer") {
+    if (!userData || (userData.role !== "admin" && userData.role !== "lecturer")) {
       navigate("/dashboard");
       return;
     }
@@ -168,20 +181,172 @@ const Admin = () => {
     }
   };
 
+  // Admin stats
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalAlerts: 0,
+    totalEvents: 0,
+  });
+
+  // Fetch stats for admin dashboard
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (userData?.role !== "admin") return;
+      
+      try {
+        // Count users
+        const usersSnapshot = await getDocs(collection(db, "users"));
+        const userCount = usersSnapshot.size;
+        
+        // Count alerts
+        const alertsSnapshot = await getDocs(collection(db, "alerts"));
+        const alertCount = alertsSnapshot.size;
+        
+        // Count events
+        const eventsSnapshot = await getDocs(collection(db, "events"));
+        const eventCount = eventsSnapshot.size;
+        
+        setStats({
+          totalUsers: userCount,
+          totalAlerts: alertCount,
+          totalEvents: eventCount,
+        });
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+      }
+    };
+    
+    fetchStats();
+  }, [userData]);
+
   return (
     <DashboardLayout>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Admin Panel</h1>
+        <h1 className="text-3xl font-bold">
+          {userData?.role === "admin" ? "Admin Panel" : "Lecturer Panel"}
+        </h1>
         <p className="text-muted-foreground">
-          Post alerts and manage academic events
+          {userData?.role === "admin" 
+            ? "Manage users, post alerts, and schedule events" 
+            : "Post alerts and manage academic events"}
         </p>
       </div>
 
-      <Tabs defaultValue="alerts" className="space-y-4">
-        <TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="alerts">Post Alert</TabsTrigger>
           <TabsTrigger value="events">Add Event</TabsTrigger>
+          {userData?.role === "admin" && (
+            <TabsTrigger value="users">User Management</TabsTrigger>
+          )}
         </TabsList>
+        
+        <TabsContent value="overview">
+          {userData?.role === "admin" ? (
+            <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Total Users
+                    </CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalUsers}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Registered accounts
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Total Alerts
+                    </CardTitle>
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalAlerts}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Posted alerts
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Total Events
+                    </CardTitle>
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalEvents}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Scheduled events
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="col-span-1">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5" /> Admin Actions
+                    </CardTitle>
+                    <CardDescription>
+                      Quick actions for administrators
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
+                      <Link to="/usermanagement">
+                        <Users className="mr-2 h-4 w-4" />
+                        Manage Users
+                      </Link>
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => setActiveTab("alerts")}
+                    >
+                      <Bell className="mr-2 h-4 w-4" />
+                      Post New Alert
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => setActiveTab("events")}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      Schedule Event
+                    </Button>
+                  </CardContent>
+                </Card>
+                
+                <Card className="col-span-1">
+                  <CardHeader>
+                    <CardTitle>Recent Activity</CardTitle>
+                    <CardDescription>
+                      Latest actions on the platform
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      Activity feed will be implemented soon.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          ) : (
+            <LecturerPanel />
+          )}
+        </TabsContent>
         
         <TabsContent value="alerts">
           <Card>
@@ -445,6 +610,29 @@ const Admin = () => {
             </CardContent>
           </Card>
         </TabsContent>
+        
+        {userData?.role === "admin" && (
+          <TabsContent value="users">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" /> User Management
+                </CardTitle>
+                <CardDescription>
+                  Manage users and permissions
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button asChild className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700">
+                  <Link to="/usermanagement">
+                    <Users className="mr-2 h-4 w-4" />
+                    Go to User Management
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </DashboardLayout>
   );
