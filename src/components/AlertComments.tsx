@@ -9,6 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
 import { MessageSquare, Send } from "lucide-react";
 import { format } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 
 interface Comment {
   id: string;
@@ -27,6 +29,7 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
   const { toast } = useToast();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(10);
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -34,6 +37,19 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
   const fetchComments = async () => {
     try {
       setLoading(true);
+      
+      // Simulate loading progress
+      const interval = setInterval(() => {
+        setLoadingProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            return 100;
+          }
+          return prev + 20;
+        });
+      }, 200);
+      
+      // Query Firestore for comments
       const commentsRef = collection(db, "comments");
       const q = query(
         commentsRef, 
@@ -55,6 +71,13 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
       });
       
       setComments(fetchedComments);
+      
+      // Clear the interval and finish loading
+      setTimeout(() => {
+        clearInterval(interval);
+        setLoadingProgress(100);
+        setLoading(false);
+      }, 800);
     } catch (error) {
       console.error("Error fetching comments:", error);
       toast({
@@ -62,7 +85,6 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
         description: "Failed to load comments",
         variant: "destructive"
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -81,6 +103,7 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
     try {
       setIsSubmitting(true);
       
+      // Add comment to Firestore
       await addDoc(collection(db, "comments"), {
         alertId,
         text: newComment.trim(),
@@ -140,15 +163,31 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
               className="self-end"
             >
               <Send className="h-4 w-4" />
+              {isSubmitting && <span className="sr-only">Submitting...</span>}
             </Button>
           </form>
 
           <div className="space-y-4 mt-4">
             {loading ? (
-              <p className="text-sm text-muted-foreground">Loading comments...</p>
+              <div className="space-y-4">
+                <div className="w-full">
+                  <Progress value={loadingProgress} className="h-1 mb-2" />
+                  <p className="text-xs text-muted-foreground">Loading comments...</p>
+                </div>
+                {[1, 2].map((i) => (
+                  <div key={i} className="flex gap-3 p-3 border rounded-lg bg-gray-50">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-1/4" />
+                      <Skeleton className="h-3 w-3/4" />
+                    </div>
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                ))}
+              </div>
             ) : comments.length > 0 ? (
               comments.map((comment) => (
-                <div key={comment.id} className="flex gap-3 p-3 border rounded-lg bg-gray-50">
+                <div key={comment.id} className="flex gap-3 p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>
                       {comment.createdByName.substring(0, 2).toUpperCase()}

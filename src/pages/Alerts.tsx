@@ -9,83 +9,44 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format } from "date-fns";
-import { Bell, Info, AlertTriangle, BookOpen } from "lucide-react";
+import { Bell, Info, AlertTriangle, BookOpen, Image } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface AlertItem {
-  id: string;
-  title: string;
-  description: string;
-  type: "general" | "test" | "exam" | "assignment";
-  moduleId: string;
-  moduleName: string;
-  createdAt: Date;
-}
+import { Progress } from "@/components/ui/progress";
+import { demoAlerts, AlertItem } from "@/utils/alertsData";
 
 const AlertsPage = () => {
   const { userData } = useAuth();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState(10);
   const [filterType, setFilterType] = useState("all");
 
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
-        // For demo purposes, we'll create some placeholder alerts
-        // In a real app, this would fetch from Firestore based on the user's subscriptions
-        const demoAlerts: AlertItem[] = [
-          {
-            id: "1",
-            title: "Venue Change for Tomorrow's Lecture",
-            description: "The lecture has been moved to Room A305",
-            type: "general",
-            moduleId: "csy301",
-            moduleName: "Software Development",
-            createdAt: new Date(2025, 3, 10) // April 10, 2025
-          },
-          {
-            id: "2",
-            title: "Assignment Deadline Extended",
-            description: "The deadline for the project submission has been extended to next Friday",
-            type: "assignment",
-            moduleId: "isy201",
-            moduleName: "Information Systems",
-            createdAt: new Date(2025, 3, 9) // April 9, 2025
-          },
-          {
-            id: "3",
-            title: "Test Date Announced",
-            description: "The mid-term test will be held on May 5th",
-            type: "test",
-            moduleId: "csy202",
-            moduleName: "Databases",
-            createdAt: new Date(2025, 3, 8) // April 8, 2025
-          },
-          {
-            id: "4",
-            title: "Exam Schedule Update",
-            description: "The final exam will now be held in the main hall",
-            type: "exam",
-            moduleId: "ce101",
-            moduleName: "Introduction to Civil Engineering",
-            createdAt: new Date(2025, 3, 7) // April 7, 2025
-          },
-          {
-            id: "5",
-            title: "Additional Study Resources",
-            description: "New study materials have been uploaded to the learning platform",
-            type: "general",
-            moduleId: "ee201",
-            moduleName: "Circuit Theory",
-            createdAt: new Date(2025, 3, 6) // April 6, 2025
-          }
-        ];
-        
+        // Simulate loading progress
+        const interval = setInterval(() => {
+          setProgress((prev) => {
+            if (prev >= 100) {
+              clearInterval(interval);
+              return 100;
+            }
+            return prev + 20;
+          });
+        }, 300);
+
+        // For now, use our shared demo alerts
+        // In a production app, you would fetch from Firestore
         setAlerts(demoAlerts);
+        
+        // Simulate network delay
+        setTimeout(() => {
+          clearInterval(interval);
+          setProgress(100);
+          setLoading(false);
+        }, 1500);
       } catch (error) {
         console.error("Error fetching alerts:", error);
-      } finally {
-        setLoading(false);
       }
     };
     
@@ -116,6 +77,12 @@ const AlertsPage = () => {
         <p className="text-muted-foreground">
           Stay updated with announcements from your modules
         </p>
+        {loading && (
+          <div className="mt-4">
+            <p className="text-sm text-muted-foreground mb-2">Loading alerts...</p>
+            <Progress value={progress} className="h-2" />
+          </div>
+        )}
       </div>
 
       <Card>
@@ -140,10 +107,13 @@ const AlertsPage = () => {
           {loading ? (
             <div className="space-y-4">
               {[1, 2, 3, 4].map(i => (
-                <div key={i} className="flex flex-col gap-2">
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-1/2" />
+                <div key={i} className="flex gap-4">
+                  <Skeleton className="h-24 w-24 rounded-md" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
                 </div>
               ))}
             </div>
@@ -155,27 +125,44 @@ const AlertsPage = () => {
                     <div className="absolute right-4 top-4 text-xs text-muted-foreground">
                       {format(alert.createdAt, "MMM d, yyyy")}
                     </div>
-                    <div className="flex items-start gap-2">
-                      {getAlertIcon(alert.type)}
-                      <div>
-                        <AlertTitle>
-                          {alert.title} • {alert.moduleName}
-                        </AlertTitle>
-                        <AlertDescription className="mt-1">
-                          {alert.description}
-                        </AlertDescription>
-                        <div className="mt-2">
-                          <span className={`text-xs px-2 py-0.5 rounded ${
-                            alert.type === "exam" 
-                              ? "bg-red-100 text-red-800" 
-                              : alert.type === "assignment" 
-                                ? "bg-yellow-100 text-yellow-800" 
-                                : alert.type === "test"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-gray-100 text-gray-800"
-                          }`}>
-                            {alert.type.charAt(0).toUpperCase() + alert.type.slice(1)}
-                          </span>
+                    <div className="flex items-start gap-4">
+                      {alert.imageUrl ? (
+                        <div className="h-24 w-24 rounded-md overflow-hidden flex-shrink-0">
+                          <img 
+                            src={alert.imageUrl} 
+                            alt={alert.title} 
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-24 w-24 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          <Image className="h-10 w-10 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-start gap-2">
+                          {getAlertIcon(alert.type)}
+                          <div className="flex-1">
+                            <AlertTitle>
+                              {alert.title} • {alert.moduleName}
+                            </AlertTitle>
+                            <AlertDescription className="mt-1">
+                              {alert.description}
+                            </AlertDescription>
+                            <div className="mt-2">
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                alert.type === "exam" 
+                                  ? "bg-red-100 text-red-800" 
+                                  : alert.type === "assignment" 
+                                    ? "bg-yellow-100 text-yellow-800" 
+                                    : alert.type === "test"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : "bg-gray-100 text-gray-800"
+                              }`}>
+                                {alert.type.charAt(0).toUpperCase() + alert.type.slice(1)}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
