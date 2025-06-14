@@ -35,9 +35,13 @@ const Dashboard = () => {
           });
         }, 200);
 
-        // Fetch real alerts from Firestore
+        // Define the time window for "recent" alerts (e.g., last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        // Fetch real alerts from Firestore, only showing those from the last 7 days
         const alertsRef = collection(db, "alerts");
-        const alertsQuery = query(alertsRef, orderBy("createdAt", "desc"), limit(3));
+        const alertsQuery = query(alertsRef, where("createdAt", ">=", Timestamp.fromDate(sevenDaysAgo)), orderBy("createdAt", "desc"), limit(3));
         const alertsSnapshot = await getDocs(alertsQuery);
         
         const fetchedAlerts: AlertItem[] = [];
@@ -60,9 +64,10 @@ const Dashboard = () => {
         if (fetchedAlerts.length > 0) {
           setRecentAlerts(fetchedAlerts);
         } else {
-          // Fallback to demo data if no alerts found
+          // Fallback to demo data if no alerts found, filtering for recent
           import("@/utils/alertsData").then(({ demoAlerts }) => {
-            setRecentAlerts(demoAlerts.slice(0, 3));
+            const recentDemoAlerts = demoAlerts.filter(alert => alert.createdAt >= sevenDaysAgo);
+            setRecentAlerts(recentDemoAlerts.slice(0, 3));
           });
         }
 
@@ -103,9 +108,13 @@ const Dashboard = () => {
         }, 1200);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
-        // Use demo data as fallback, filtering for future events
+        // Use demo data as fallback, filtering for future events and recent alerts
         import("@/utils/alertsData").then(({ demoAlerts }) => {
-          setRecentAlerts(demoAlerts.slice(0, 3));
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          const recentDemoAlerts = demoAlerts.filter(alert => alert.createdAt >= sevenDaysAgo);
+          setRecentAlerts(recentDemoAlerts.slice(0, 3));
+
           const futureDemoEvents = upcomingEventsData.filter(event => event.date >= new Date());
           setUpcomingEvents(futureDemoEvents);
           setLoading(false);
