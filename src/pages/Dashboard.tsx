@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, query, orderBy, limit, getDocs, Timestamp } from "firebase/firestore";
+import { collection, query, where, orderBy, limit, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -66,9 +66,9 @@ const Dashboard = () => {
           });
         }
 
-        // Fetch real events from Firestore
+        // Fetch real events from Firestore, only showing future events
         const eventsRef = collection(db, "events");
-        const eventsQuery = query(eventsRef, orderBy("date"), limit(3));
+        const eventsQuery = query(eventsRef, where("date", ">=", Timestamp.now()), orderBy("date"), limit(3));
         const eventsSnapshot = await getDocs(eventsQuery);
         
         const fetchedEvents: EventItem[] = [];
@@ -90,8 +90,9 @@ const Dashboard = () => {
         if (fetchedEvents.length > 0) {
           setUpcomingEvents(fetchedEvents);
         } else {
-          // Keep using demo data for events
-          setUpcomingEvents(upcomingEventsData);
+          // Keep using demo data for events, but filter for future dates
+          const futureDemoEvents = upcomingEventsData.filter(event => event.date >= new Date());
+          setUpcomingEvents(futureDemoEvents);
         }
         
         // Simulate network delay
@@ -102,10 +103,11 @@ const Dashboard = () => {
         }, 1200);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
-        // Use demo data as fallback
+        // Use demo data as fallback, filtering for future events
         import("@/utils/alertsData").then(({ demoAlerts }) => {
           setRecentAlerts(demoAlerts.slice(0, 3));
-          setUpcomingEvents(upcomingEventsData);
+          const futureDemoEvents = upcomingEventsData.filter(event => event.date >= new Date());
+          setUpcomingEvents(futureDemoEvents);
           setLoading(false);
         });
       }
