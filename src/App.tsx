@@ -16,10 +16,21 @@ import Dashboard from "./pages/Dashboard";
 import Alerts from "./pages/Alerts";
 import Modules from "./pages/Modules";
 import Calendar from "./pages/Calendar";
-import Admin from "./pages/Admin";
-import UserManagement from "./pages/UserManagement";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+
+// Admin Pages
+import UserManagement from "./pages/UserManagement";
+import AlertManagement from "./pages/AlertManagement";
+import Analytics from "./pages/Analytics";
+import SystemSettings from "./pages/SystemSettings";
+
+// Lecturer Pages
+import MyModules from "./pages/MyModules";
+import CreateAlert from "./pages/CreateAlert";
+
+// Student Pages
+import MyTimetable from "./pages/MyTimetable";
 
 const queryClient = new QueryClient();
 
@@ -59,19 +70,50 @@ const App = () => (
                 <Calendar />
               </ProtectedRoute>
             } />
-            <Route path="/admin" element={
+            <Route path="/profile" element={
               <ProtectedRoute>
-                <Admin />
+                <Profile />
               </ProtectedRoute>
             } />
+            
+            {/* Admin Routes */}
             <Route path="/usermanagement" element={
               <ProtectedRoute>
                 <UserManagement />
               </ProtectedRoute>
             } />
-            <Route path="/profile" element={
+            <Route path="/alert-management" element={
               <ProtectedRoute>
-                <Profile />
+                <AlertManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/analytics" element={
+              <ProtectedRoute>
+                <Analytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/system-settings" element={
+              <ProtectedRoute>
+                <SystemSettings />
+              </ProtectedRoute>
+            } />
+            
+            {/* Lecturer Routes */}
+            <Route path="/my-modules" element={
+              <ProtectedRoute>
+                <MyModules />
+              </ProtectedRoute>
+            } />
+            <Route path="/create-alert" element={
+              <ProtectedRoute>
+                <CreateAlert />
+              </ProtectedRoute>
+            } />
+            
+            {/* Student Routes */}
+            <Route path="/my-timetable" element={
+              <ProtectedRoute>
+                <MyTimetable />
               </ProtectedRoute>
             } />
             
