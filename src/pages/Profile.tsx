@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -9,19 +8,35 @@ import { Label } from "@/components/ui/label";
 import { User, Mail, Key, Save } from "lucide-react";
 import { updateProfile } from "firebase/auth";
 import { doc, updateDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import { useToast } from "@/components/ui/use-toast";
+import { Switch } from "@/components/ui/switch";
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+
+const alertTypes = [
+  { key: "exams", label: "Exam Alerts" },
+  { key: "assignments", label: "Assignment Alerts" },
+  { key: "events", label: "Event Alerts" },
+];
 
 const Profile = () => {
   const { userData, user } = useAuth();
   const { toast } = useToast();
   
   const [displayName, setDisplayName] = useState(userData?.displayName || "");
+  const [cellphone, setCellphone] = useState(userData?.cellphone || "");
   const [isLoading, setIsLoading] = useState(false);
+  const [timetable, setTimetable] = useState<File | null>(null);
+  const [timetableUrl, setTimetableUrl] = useState<string | null>(userData?.timetableUrl || null);
+  const [removingTimetable, setRemovingTimetable] = useState(false);
+  const [alertPrefs, setAlertPrefs] = useState({
+    exams: true,
+    assignments: true,
+    events: true,
+  });
 
   const handleUpdateProfile = async () => {
     if (!user) return;
-    
     setIsLoading(true);
     try {
       // Update Firebase Auth profile
@@ -31,7 +46,8 @@ const Profile = () => {
       
       // Update Firestore user document
       await updateDoc(doc(db, "users", user.uid), {
-        displayName: displayName
+        displayName,
+        cellphone,
       });
       
       toast({
@@ -48,6 +64,51 @@ const Profile = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleTimetableUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setTimetable(file);
+      try {
+        const fileRef = storageRef(storage, `timetables/${user.uid}/${file.name}`);
+        await uploadBytes(fileRef, file);
+        const url = await getDownloadURL(fileRef);
+        setTimetableUrl(url);
+        await updateDoc(doc(db, "users", user.uid), { timetableUrl: url });
+        toast({ title: "Timetable uploaded", description: "Your timetable has been uploaded." });
+      } catch (err) {
+        toast({ title: "Upload failed", description: "Could not upload timetable.", variant: "destructive" });
+      }
+    }
+  };
+
+  const handleRemoveTimetable = async () => {
+    if (!user || !timetableUrl) return;
+    setRemovingTimetable(true);
+    try {
+      // Extract file name from URL
+      const urlParts = timetableUrl.split("?")[0].split("/");
+      const fileName = urlParts[urlParts.length - 1];
+      const fileRef = storageRef(storage, `timetables/${user.uid}/${fileName}`);
+      await deleteObject(fileRef);
+      await updateDoc(doc(db, "users", user.uid), { timetableUrl: null });
+      setTimetable(null);
+      setTimetableUrl(null);
+      toast({ title: "Timetable removed", description: "Your timetable has been removed." });
+    } catch (err) {
+      toast({ title: "Remove failed", description: "Could not remove timetable.", variant: "destructive" });
+    }
+    setRemovingTimetable(false);
+  };
+
+  const handleAlertToggle = (type: string) => {
+    setAlertPrefs((prev) => ({
+      ...prev,
+      [type]: !prev[type],
+    }));
+    // TODO: Save preferences to backend or local storage
   };
 
   return (
@@ -117,6 +178,68 @@ const Profile = () => {
                   Your role determines your access level in the system
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cellphone">Cellphone Number</Label>
+                <Input
+                  id="cellphone"
+                  value={cellphone}
+                  onChange={e => setCellphone(e.target.value)}
+                  placeholder="e.g. 0812345678"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Your cellphone number is used for SMS alerts
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        {/* Semester Timetable Upload */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Semester Timetable</CardTitle>
+            <CardDescription>Upload your semester timetable (PDF or image)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <input
+              type="file"
+              accept=".pdf,image/*"
+              onChange={handleTimetableUpload}
+              disabled={!!timetableUrl}
+            />
+            {timetableUrl ? (
+              <div className="mt-2 flex items-center gap-4">
+                <a href={timetableUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                  View Timetable
+                </a>
+                <Button variant="destructive" size="sm" onClick={handleRemoveTimetable} disabled={removingTimetable}>
+                  {removingTimetable ? "Removing..." : "Remove"}
+                </Button>
+              </div>
+            ) : timetable ? (
+              <div className="mt-2 text-sm text-green-600">
+                Ready to upload: {timetable.name}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+        {/* Alert Preferences */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Alert Preferences</CardTitle>
+            <CardDescription>Choose which alerts you want to see or receive notifications for</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {alertTypes.map((alert) => (
+                <div key={alert.key} className="flex items-center justify-between">
+                  <span>{alert.label}</span>
+                  <Switch
+                    checked={alertPrefs[alert.key as keyof typeof alertPrefs]}
+                    onCheckedChange={() => handleAlertToggle(alert.key)}
+                  />
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

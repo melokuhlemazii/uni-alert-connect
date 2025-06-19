@@ -14,12 +14,25 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import AlertComments from "@/components/AlertComments";
 
+const alertTypes = [
+  { key: "exams", label: "Exam Alerts" },
+  { key: "assignments", label: "Assignment Alerts" },
+  { key: "events", label: "Event Alerts" },
+];
+
 const Dashboard = () => {
   const { userData } = useAuth();
   const [recentAlerts, setRecentAlerts] = useState<AlertItem[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(10);
+  const [timetable, setTimetable] = useState<File | null>(null);
+  const [timetableUrl, setTimetableUrl] = useState<string | null>(null);
+  const [alertPrefs, setAlertPrefs] = useState({
+    exams: true,
+    assignments: true,
+    events: true,
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -165,6 +178,40 @@ const Dashboard = () => {
     }
   };
 
+  const handleTimetableUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setTimetable(e.target.files[0]);
+      // TODO: Upload to server or Firebase Storage
+    }
+  };
+
+  const handleAlertToggle = (type: string) => {
+    setAlertPrefs((prev) => ({
+      ...prev,
+      [type]: !prev[type],
+    }));
+    // TODO: Save preferences to backend or local storage
+  };
+
+  // Timetable display section
+  const timetableSection = timetableUrl ? (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Calendar className="h-5 w-5" /> Your Semester Timetable
+        </CardTitle>
+        <CardDescription>View your uploaded timetable below</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {timetableUrl.endsWith('.pdf') ? (
+          <a href={timetableUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Open Timetable PDF</a>
+        ) : (
+          <img src={timetableUrl} alt="Semester Timetable" className="max-w-full rounded shadow" />
+        )}
+      </CardContent>
+    </Card>
+  ) : null;
+
   return (
     <DashboardLayout>
       <div className="mb-6">
@@ -172,6 +219,7 @@ const Dashboard = () => {
         <p className="text-muted-foreground">
           Here's what's happening with your modules
         </p>
+        {timetableSection}
         {loading && (
           <div className="mt-4">
             <p className="text-sm text-muted-foreground mb-2">Loading your dashboard...</p>

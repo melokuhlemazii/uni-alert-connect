@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { 
   User,
@@ -20,6 +19,8 @@ interface UserData {
   displayName: string | null;
   role: UserRole;
   createdAt?: Date;
+  cellphone?: string;
+  timetableUrl?: string;
 }
 
 interface AuthContextType {
