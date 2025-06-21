@@ -1,4 +1,3 @@
-
 import React from "react";
 import { 
   Bell, 
@@ -8,7 +7,12 @@ import {
   Settings, 
   BookOpen,
   User,
-  Menu 
+  Menu,
+  Users,
+  AlertTriangle,
+  BarChart3,
+  Clock,
+  Plus
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -17,7 +21,7 @@ import {
   SheetContent, 
   SheetTrigger 
 } from "@/components/ui/sheet";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface DashboardLayoutProps {
@@ -39,40 +43,124 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     return location.pathname === path;
   };
 
-  const isAdmin = userData?.role === "admin" || userData?.role === "lecturer";
+  // Role-specific navigation items
+  const getNavItems = () => {
+    const role = userData?.role;
 
-  const navItems = [
-    { 
-      path: "/dashboard", 
-      name: "Dashboard", 
-      icon: <Home className="mr-2 h-4 w-4" /> 
-    },
-    { 
-      path: "/calendar", 
-      name: "Calendar", 
-      icon: <Calendar className="mr-2 h-4 w-4" /> 
-    },
-    { 
-      path: "/alerts", 
-      name: "Alerts", 
-      icon: <Bell className="mr-2 h-4 w-4" /> 
-    },
-    { 
-      path: "/modules", 
-      name: "Modules", 
-      icon: <BookOpen className="mr-2 h-4 w-4" /> 
-    },
-    ...(isAdmin ? [{ 
-      path: "/admin", 
-      name: "Admin Panel", 
-      icon: <Settings className="mr-2 h-4 w-4" /> 
-    }] : []),
-    { 
-      path: "/profile", 
-      name: "Profile", 
-      icon: <User className="mr-2 h-4 w-4" /> 
+    if (role === "admin") {
+      return [
+        { 
+          path: "/analytics", 
+          name: "Analytics", 
+          icon: <BarChart3 className="mr-2 h-4 w-4" /> 
+        },
+        { 
+          path: "/usermanagement", 
+          name: "User Management", 
+          icon: <Users className="mr-2 h-4 w-4" /> 
+        },
+        { 
+          path: "/alert-management", 
+          name: "Alert Management", 
+          icon: <AlertTriangle className="mr-2 h-4 w-4" /> 
+        },
+        { 
+          path: "/system-settings", 
+          name: "System Settings", 
+          icon: <Settings className="mr-2 h-4 w-4" /> 
+        },
+        { 
+          path: "/profile", 
+          name: "Profile", 
+          icon: <User className="mr-2 h-4 w-4" /> 
+        }
+      ];
     }
-  ];
+
+    if (role === "lecturer") {
+      return [
+        { 
+          path: "/dashboard", 
+          name: "Dashboard", 
+          icon: <Home className="mr-2 h-4 w-4" /> 
+        },
+        { 
+          path: "/my-modules", 
+          name: "My Modules", 
+          icon: <BookOpen className="mr-2 h-4 w-4" /> 
+        },
+        { 
+          path: "/create-alert", 
+          name: "Create Alert", 
+          icon: <Plus className="mr-2 h-4 w-4" /> 
+        },
+        { 
+          path: "/calendar", 
+          name: "Calendar", 
+          icon: <Calendar className="mr-2 h-4 w-4" /> 
+        },
+        { 
+          path: "/alerts", 
+          name: "Alerts", 
+          icon: <Bell className="mr-2 h-4 w-4" /> 
+        },
+        { 
+          path: "/profile", 
+          name: "Profile", 
+          icon: <User className="mr-2 h-4 w-4" /> 
+        }
+      ];
+    }
+
+    // Student navigation
+    return [
+      { 
+        path: "/dashboard", 
+        name: "Dashboard", 
+        icon: <Home className="mr-2 h-4 w-4" /> 
+      },
+      { 
+        path: "/modules", 
+        name: "My Modules", 
+        icon: <BookOpen className="mr-2 h-4 w-4" /> 
+      },
+      { 
+        path: "/calendar", 
+        name: "Calendar", 
+        icon: <Calendar className="mr-2 h-4 w-4" /> 
+      },
+      { 
+        path: "/my-timetable", 
+        name: "My Timetable", 
+        icon: <Clock className="mr-2 h-4 w-4" /> 
+      },
+      { 
+        path: "/alerts", 
+        name: "Alerts", 
+        icon: <Bell className="mr-2 h-4 w-4" /> 
+      },
+      { 
+        path: "/profile", 
+        name: "Profile", 
+        icon: <User className="mr-2 h-4 w-4" /> 
+      }
+    ];
+  };
+
+  const navItems = getNavItems();
+
+  const getRoleDisplayName = () => {
+    switch (userData?.role) {
+      case "admin":
+        return "Admin Dashboard";
+      case "lecturer":
+        return "Lecturer Dashboard";
+      case "student":
+        return "Student Dashboard";
+      default:
+        return "Dashboard";
+    }
+  };
 
   const NavContent = () => (
     <>
@@ -80,7 +168,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <div className="px-4 py-2">
           <h2 className="text-lg font-semibold tracking-tight">Uni-Alert Connect</h2>
           <p className="text-sm text-muted-foreground">
-            {userData?.role?.charAt(0).toUpperCase() + userData?.role?.slice(1) || "User"} Dashboard
+            {getRoleDisplayName()}
           </p>
         </div>
         <div className="px-2">

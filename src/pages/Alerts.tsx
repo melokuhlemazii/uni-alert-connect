@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from "react";
 import { collection, query, orderBy, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import AlertComments from "@/components/AlertComments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

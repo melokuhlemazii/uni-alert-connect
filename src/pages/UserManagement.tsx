@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from "react";
 import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,6 +43,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 interface User {
   uid: string;
@@ -62,6 +63,22 @@ const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addForm, setAddForm] = useState({
+    displayName: "",
+    email: "",
+    password: "",
+    role: "student",
+  });
+  const [addLoading, setAddLoading] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editForm, setEditForm] = useState({
+    uid: "",
+    displayName: "",
+    email: "",
+    role: "student",
+  });
+  const [editLoading, setEditLoading] = useState(false);
 
   // Check if user is admin
   useEffect(() => {
@@ -85,7 +102,12 @@ const UserManagement = () => {
           email: userData.email || "",
           displayName: userData.displayName || "",
           role: userData.role || "student",
-          createdAt: userData.createdAt?.toDate(),
+          createdAt:
+            userData.createdAt && typeof userData.createdAt.toDate === "function"
+              ? userData.createdAt.toDate()
+              : userData.createdAt
+                ? new Date(userData.createdAt)
+                : null,
         });
       });
       
@@ -148,6 +170,89 @@ const UserManagement = () => {
     }
   };
 
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddLoading(true);
+    try {
+      // 1. Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        addForm.email,
+        addForm.password
+      );
+      const newUser = userCredential.user;
+      // 2. Add user to Firestore
+      await updateDoc(doc(db, "users", newUser.uid), {
+        email: addForm.email,
+        displayName: addForm.displayName,
+        role: addForm.role,
+        createdAt: new Date(),
+      });
+      // 3. Update local state
+      setUsers((prev) => [
+        ...prev,
+        {
+          uid: newUser.uid,
+          email: addForm.email,
+          displayName: addForm.displayName,
+          role: addForm.role as UserRole,
+          createdAt: new Date(),
+        },
+      ]);
+      setShowAddDialog(false);
+      setAddForm({ displayName: "", email: "", password: "", role: "student" });
+      toast({ title: "User added", description: "User has been created." });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const openEditDialog = (user: User) => {
+    setEditForm({
+      uid: user.uid,
+      displayName: user.displayName,
+      email: user.email,
+      role: user.role,
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      // Update user in Firestore
+      await updateDoc(doc(db, "users", editForm.uid), {
+        displayName: editForm.displayName,
+        email: editForm.email,
+        role: editForm.role,
+      });
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.uid === editForm.uid
+            ? { ...user, displayName: editForm.displayName, email: editForm.email, role: editForm.role as UserRole }
+            : user
+        )
+      );
+      setShowEditDialog(false);
+      toast({ title: "User updated", description: "User details have been updated." });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
       case "admin":
@@ -176,7 +281,114 @@ const UserManagement = () => {
           Manage users, roles, and permissions
         </p>
       </div>
-
+      <Button className="mb-4" onClick={() => setShowAddDialog(true)}>
+        + Add User
+      </Button>
+      {/* Add User Dialog */}
+      {showAddDialog && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
+          <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Add User</h2>
+            <form onSubmit={handleAddUser} className="space-y-4">
+              <div>
+                <label className="block mb-1">Name</label>
+                <Input
+                  value={addForm.displayName}
+                  onChange={e => setAddForm(f => ({ ...f, displayName: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Email</label>
+                <Input
+                  type="email"
+                  value={addForm.email}
+                  onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Password</label>
+                <Input
+                  type="password"
+                  value={addForm.password}
+                  onChange={e => setAddForm(f => ({ ...f, password: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Role</label>
+                <select
+                  className="w-full border rounded p-2"
+                  value={addForm.role}
+                  onChange={e => setAddForm(f => ({ ...f, role: e.target.value }))}
+                  required
+                >
+                  <option value="student">Student</option>
+                  <option value="lecturer">Lecturer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={addLoading}>
+                  {addLoading ? "Adding..." : "Add User"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Edit User Dialog */}
+      {showEditDialog && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
+          <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Edit User</h2>
+            <form onSubmit={handleEditUser} className="space-y-4">
+              <div>
+                <label className="block mb-1">Name</label>
+                <Input
+                  value={editForm.displayName}
+                  onChange={e => setEditForm(f => ({ ...f, displayName: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Email</label>
+                <Input
+                  type="email"
+                  value={editForm.email}
+                  onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Role</label>
+                <select
+                  className="w-full border rounded p-2"
+                  value={editForm.role}
+                  onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
+                  required
+                >
+                  <option value="student">Student</option>
+                  <option value="lecturer">Lecturer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowEditDialog(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={editLoading}>
+                  {editLoading ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -227,6 +439,10 @@ const UserManagement = () => {
                         {user.createdAt ? format(user.createdAt, "MMM d, yyyy") : "N/A"}
                       </TableCell>
                       <TableCell className="flex justify-end gap-2">
+                        <Button variant="outline" size="icon" onClick={() => openEditDialog(user)}>
+                          <UserX className="h-4 w-4" />
+                        </Button>
+                        
                         <Select
                           defaultValue={user.role}
                           onValueChange={(value: string) => 

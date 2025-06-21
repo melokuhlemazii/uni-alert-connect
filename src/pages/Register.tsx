@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
@@ -19,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GraduationCap } from "lucide-react";
-import { useAuth, UserRole } from "@/context/AuthContext";
+import { useAuth } from "@/context/useAuth";
+import { UserRole } from "@/context/AuthContext";
 
 const Register = () => {
   const [fullName, setFullName] = useState("");

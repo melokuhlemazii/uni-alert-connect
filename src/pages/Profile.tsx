@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,9 @@ import { Label } from "@/components/ui/label";
 import { User, Mail, Key, Save } from "lucide-react";
 import { updateProfile } from "firebase/auth";
 import { doc, updateDoc } from "firebase/firestore";
-import { auth, db, storage } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useToast } from "@/components/ui/use-toast";
 import { Switch } from "@/components/ui/switch";
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 const alertTypes = [
   { key: "exams", label: "Exam Alerts" },
@@ -67,39 +66,19 @@ const Profile = () => {
   };
 
   const handleTimetableUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!user) return;
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setTimetable(file);
-      try {
-        const fileRef = storageRef(storage, `timetables/${user.uid}/${file.name}`);
-        await uploadBytes(fileRef, file);
-        const url = await getDownloadURL(fileRef);
-        setTimetableUrl(url);
-        await updateDoc(doc(db, "users", user.uid), { timetableUrl: url });
-        toast({ title: "Timetable uploaded", description: "Your timetable has been uploaded." });
-      } catch (err) {
-        toast({ title: "Upload failed", description: "Could not upload timetable.", variant: "destructive" });
-      }
+      // TODO: Upload to Firebase Storage and get URL
+      // setTimetableUrl(url);
     }
   };
 
   const handleRemoveTimetable = async () => {
-    if (!user || !timetableUrl) return;
     setRemovingTimetable(true);
-    try {
-      // Extract file name from URL
-      const urlParts = timetableUrl.split("?")[0].split("/");
-      const fileName = urlParts[urlParts.length - 1];
-      const fileRef = storageRef(storage, `timetables/${user.uid}/${fileName}`);
-      await deleteObject(fileRef);
-      await updateDoc(doc(db, "users", user.uid), { timetableUrl: null });
-      setTimetable(null);
-      setTimetableUrl(null);
-      toast({ title: "Timetable removed", description: "Your timetable has been removed." });
-    } catch (err) {
-      toast({ title: "Remove failed", description: "Could not remove timetable.", variant: "destructive" });
-    }
+    // TODO: Remove from Firebase Storage and update Firestore
+    setTimetable(null);
+    setTimetableUrl(null);
     setRemovingTimetable(false);
   };
 

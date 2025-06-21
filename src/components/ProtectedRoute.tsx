@@ -1,15 +1,15 @@
-
 import React from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  allowedRoles?: string[];
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, loading } = useAuth();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
+  const { user, userData, loading } = useAuth();
 
   // Show loading state while checking authentication
   if (loading) {
@@ -30,7 +30,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/login" />;
   }
 
-  // If authenticated, render the protected content
+  // If allowedRoles is set, check user role
+  if (allowedRoles && userData && !allowedRoles.includes(userData.role)) {
+    // Redirect to role-based landing if not allowed
+    return <Navigate to="/" replace />;
+  }
+
+  // If authenticated and allowed, render the protected content
   return <>{children}</>;
 };
 

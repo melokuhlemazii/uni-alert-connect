@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/useAuth";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, Timestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
