@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -45,6 +45,8 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     if (!userData?.uid) return;
+    let unsubAlerts: (() => void) | null = null;
+    let unsubEvents: (() => void) | null = null;
     const fetchData = async () => {
       setLoading(true);
       // Fetch student module subscriptions
@@ -63,46 +65,52 @@ const StudentDashboard = () => {
       });
       const myModules = allModules.filter(m => subscribedModuleIds.includes(m.id));
       setModules(myModules);
-      // Fetch alerts for subscribed modules
-      const alertsSnapshot = await getDocs(collection(db, "alerts"));
-      const fetchedAlerts: AlertItem[] = [];
-      alertsSnapshot.forEach(doc => {
-        const d = doc.data();
-        if (subscribedModuleIds.includes(d.moduleId)) {
-          fetchedAlerts.push({
-            id: doc.id,
-            title: d.title,
-            description: d.description,
-            type: d.type,
-            moduleId: d.moduleId,
-            moduleName: d.moduleName,
-            createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : new Date(),
-            imageUrl: d.imageUrl,
-          });
-        }
+      // Real-time alerts for subscribed modules
+      unsubAlerts = onSnapshot(collection(db, "alerts"), (snapshot: QuerySnapshot<DocumentData>) => {
+        const fetchedAlerts: AlertItem[] = [];
+        snapshot.forEach(doc => {
+          const d = doc.data();
+          if (subscribedModuleIds.includes(d.moduleId)) {
+            fetchedAlerts.push({
+              id: doc.id,
+              title: d.title,
+              description: d.description,
+              type: d.type,
+              moduleId: d.moduleId,
+              moduleName: d.moduleName,
+              createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : new Date(),
+              imageUrl: d.imageUrl,
+            });
+          }
+        });
+        setAlerts(fetchedAlerts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
       });
-      setAlerts(fetchedAlerts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-      // Fetch events for subscribed modules
-      const eventsSnapshot = await getDocs(collection(db, "alerts"));
-      const fetchedEvents: EventItem[] = [];
-      eventsSnapshot.forEach(doc => {
-        const d = doc.data();
-        if (subscribedModuleIds.includes(d.moduleId) && d.type === "event") {
-          fetchedEvents.push({
-            id: doc.id,
-            title: d.title,
-            date: d.scheduledAt?.toDate ? d.scheduledAt.toDate() : new Date(),
-            type: d.type,
-            moduleId: d.moduleId,
-            moduleName: d.moduleName,
-            imageUrl: d.imageUrl,
-          });
-        }
+      // Real-time events for subscribed modules
+      unsubEvents = onSnapshot(collection(db, "alerts"), (snapshot: QuerySnapshot<DocumentData>) => {
+        const fetchedEvents: EventItem[] = [];
+        snapshot.forEach(doc => {
+          const d = doc.data();
+          if (subscribedModuleIds.includes(d.moduleId) && d.type === "event") {
+            fetchedEvents.push({
+              id: doc.id,
+              title: d.title,
+              date: d.scheduledAt?.toDate ? d.scheduledAt.toDate() : new Date(),
+              type: d.type,
+              moduleId: d.moduleId,
+              moduleName: d.moduleName,
+              imageUrl: d.imageUrl,
+            });
+          }
+        });
+        setEvents(fetchedEvents.sort((a, b) => a.date.getTime() - b.date.getTime()));
+        setLoading(false);
       });
-      setEvents(fetchedEvents.sort((a, b) => a.date.getTime() - b.date.getTime()));
-      setLoading(false);
     };
     fetchData();
+    return () => {
+      if (unsubAlerts) unsubAlerts();
+      if (unsubEvents) unsubEvents();
+    };
   }, [userData]);
 
   return (

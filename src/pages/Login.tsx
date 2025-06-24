@@ -22,6 +22,7 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return; // Prevent double submission
     setIsLoading(true);
 
     try {

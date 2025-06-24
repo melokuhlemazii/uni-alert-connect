@@ -80,11 +80,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     if (role === "lecturer") {
       return [
         { 
-          path: "/dashboard", 
-          name: "Dashboard", 
-          icon: <Home className="mr-2 h-4 w-4" /> 
-        },
-        { 
           path: "/my-modules", 
           name: "My Modules", 
           icon: <BookOpen className="mr-2 h-4 w-4" /> 

@@ -27,6 +27,7 @@ import SystemSettings from "./pages/SystemSettings";
 // Lecturer Pages
 import MyModules from "./pages/MyModules";
 import CreateAlert from "./pages/CreateAlert";
+import ModuleDetails from "./pages/ModuleDetails";
 
 // Student Pages
 import MyTimetable from "./pages/MyTimetable";
@@ -102,6 +103,11 @@ const App = () => (
             <Route path="/create-alert" element={
               <ProtectedRoute>
                 <CreateAlert />
+              </ProtectedRoute>
+            } />
+            <Route path="/modules/:moduleId" element={
+              <ProtectedRoute>
+                <ModuleDetails />
               </ProtectedRoute>
             } />
             

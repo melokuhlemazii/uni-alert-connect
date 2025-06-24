@@ -11,6 +11,15 @@ import { Clock, Upload, Download, Trash, Image } from "lucide-react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+// Define a type for calendar items
+interface CalendarItem {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  scheduledAt: Date;
+}
+
 const MyTimetable = () => {
   const { userData } = useAuth();
   const navigate = useNavigate();
@@ -19,7 +28,7 @@ const MyTimetable = () => {
   const [timetableFile, setTimetableFile] = useState<File | null>(null);
   const [timetableUrl, setTimetableUrl] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
-  const [calendarItems, setCalendarItems] = useState<any[]>([]);
+  const [calendarItems, setCalendarItems] = useState<CalendarItem[]>([]);
 
   React.useEffect(() => {
     if (userData?.role !== "student") {
@@ -34,13 +43,15 @@ const MyTimetable = () => {
     // Fetch alerts/events for calendar
     const fetchCalendarItems = async () => {
       const snapshot = await getDocs(collection(db, "alerts"));
-      const items: any[] = [];
+      const items: CalendarItem[] = [];
       snapshot.forEach(doc => {
         const data = doc.data();
         if (["event", "exam", "assignment"].includes(data.type) && data.scheduledAt) {
           items.push({
-            ...data,
             id: doc.id,
+            title: data.title,
+            description: data.description,
+            type: data.type,
             scheduledAt: data.scheduledAt.toDate ? data.scheduledAt.toDate() : new Date(data.scheduledAt),
           });
         }
@@ -223,47 +234,6 @@ const MyTimetable = () => {
                   className="w-full h-auto max-h-[600px] object-contain"
                 />
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Upcoming Events/Alerts Section */}
-        {calendarItems.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Upcoming Events & Alerts
-              </CardTitle>
-              <CardDescription>
-                These are events, exams, and assignments scheduled by your lecturers/admins
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-4">
-                {calendarItems.map(item => (
-                  <li key={item.id} className="border-b pb-2">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="font-semibold">{item.title}</div>
-                        <div className="text-sm text-muted-foreground">{item.description}</div>
-                        <span className={`text-xs px-2 py-0.5 rounded capitalize ml-1 ${
-                          item.type === "exam"
-                            ? "bg-red-100 text-red-800"
-                            : item.type === "assignment"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-green-100 text-green-800"
-                        }`}>
-                          {item.type}
-                        </span>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {item.scheduledAt ? item.scheduledAt.toLocaleString() : ""}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
             </CardContent>
           </Card>
         )}

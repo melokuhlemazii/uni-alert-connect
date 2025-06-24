@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -182,7 +182,7 @@ const UserManagement = () => {
       );
       const newUser = userCredential.user;
       // 2. Add user to Firestore
-      await updateDoc(doc(db, "users", newUser.uid), {
+      await setDoc(doc(db, "users", newUser.uid), {
         email: addForm.email,
         displayName: addForm.displayName,
         role: addForm.role,

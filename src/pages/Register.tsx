@@ -27,13 +27,32 @@ const Register = () => {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("student");
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ fullName?: string; email?: string; password?: string }>({});
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  const validate = () => {
+    const newErrors: { fullName?: string; email?: string; password?: string } = {};
+    // Name: only letters and spaces
+    if (!/^[A-Za-z ]+$/.test(fullName)) {
+      newErrors.fullName = "Name must contain only letters and spaces.";
+    }
+    // Email: must be a gmail account
+    if (!/^([a-zA-Z0-9_.+-]+)@gmail\.com$/.test(email)) {
+      newErrors.email = "Email must be a valid Gmail address.";
+    }
+    // Password: min 6 chars, at least 1 uppercase, 1 lowercase, 1 number, 1 special char
+    if (!/^.*(?=.{6,})(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':\"\\|,.<>/?]).*$/.test(password)) {
+      newErrors.password = "Password must be at least 6 characters, include uppercase, lowercase, number, and special character.";
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validate()) return;
     setIsLoading(true);
-
     try {
       await register(email, password, fullName, role);
       navigate("/dashboard");
@@ -65,6 +84,7 @@ const Register = () => {
                 placeholder="John Doe" 
                 required 
               />
+              {errors.fullName && <p className="text-red-600 text-xs mt-1">{errors.fullName}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -73,9 +93,10 @@ const Register = () => {
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com" 
+                placeholder="you@gmail.com" 
                 required 
               />
+              {errors.email && <p className="text-red-600 text-xs mt-1">{errors.email}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -86,6 +107,7 @@ const Register = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required 
               />
+              {errors.password && <p className="text-red-600 text-xs mt-1">{errors.password}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
