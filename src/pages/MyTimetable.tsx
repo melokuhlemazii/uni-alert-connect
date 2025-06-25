@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { Clock, Upload, Download, Trash, Image } from "lucide-react";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
+import { db, storage } from "@/lib/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 // Define a type for calendar items
 interface CalendarItem {
@@ -35,10 +36,16 @@ const MyTimetable = () => {
       navigate("/dashboard");
       return;
     }
-    
-    // In a real app, fetch user's existing timetable
-    // For demo, we'll set a sample timetable
-    setTimetableUrl("https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=800&q=80");
+    // Fetch user's existing timetable from Firestore
+    const fetchTimetable = async () => {
+      if (!userData?.uid) return;
+      const userDoc = await getDoc(doc(db, "users", userData.uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        if (data.timetableUrl) setTimetableUrl(data.timetableUrl);
+      }
+    };
+    fetchTimetable();
 
     // Fetch alerts/events for calendar
     const fetchCalendarItems = async () => {
@@ -89,36 +96,48 @@ const MyTimetable = () => {
   };
 
   const handleUpload = async () => {
-    if (!timetableFile) return;
-    
+    if (!timetableFile || !userData?.uid) return;
     setIsUploading(true);
     try {
-      // In a real app, you would upload to Firebase Storage
-      // For demo, we'll create a fake URL and simulate upload
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const fakeUrl = URL.createObjectURL(timetableFile);
-      setTimetableUrl(fakeUrl);
+      // Always use a fixed file name for overwrite/removal
+      const fileExt = timetableFile.name.split('.').pop();
+      const fileRef = storageRef(storage, `timetables/${userData.uid}/timetable.${fileExt}`);
+      await uploadBytes(fileRef, timetableFile);
+      const url = await getDownloadURL(fileRef);
+      setTimetableUrl(url);
       setTimetableFile(null);
-      
+      // Save URL to Firestore
+      await setDoc(doc(db, "users", userData.uid), { timetableUrl: url }, { merge: true });
       toast({
         title: "Timetable uploaded",
         description: "Your timetable has been saved successfully",
       });
     } catch (error) {
+      setIsUploading(false);
+      setTimetableFile(null);
       toast({
         title: "Upload failed",
-        description: "Failed to upload your timetable",
+        description: (error as Error).message || "Failed to upload your timetable",
         variant: "destructive"
       });
-    } finally {
-      setIsUploading(false);
+      return;
     }
+    setIsUploading(false);
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
+    if (!userData?.uid || !timetableUrl) return;
+    try {
+      // Delete from Firebase Storage
+      const fileRef = storageRef(storage, `timetables/${userData.uid}/timetable.${timetableUrl.split('.').pop().split('?')[0]}`);
+      await deleteObject(fileRef);
+    } catch (e) {
+      // Ignore if file doesn't exist
+    }
     setTimetableUrl("");
     setTimetableFile(null);
+    // Remove URL from Firestore
+    await setDoc(doc(db, "users", userData.uid), { timetableUrl: "" }, { merge: true });
     toast({
       title: "Timetable removed",
       description: "Your timetable has been removed",

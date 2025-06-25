@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, query, where, orderBy, limit, getDocs, Timestamp } from "firebase/firestore";
+import { collection, query, where, orderBy, limit, getDocs, Timestamp, doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -13,6 +13,12 @@ import { AlertItem, EventItem, upcomingEventsData } from "@/utils/alertsData";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import AlertComments from "@/components/AlertComments";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/use-toast";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { UserPlus, CalendarPlus, Mail } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 const alertTypes = [
   { key: "exams", label: "Exam Alerts" },
@@ -29,10 +35,25 @@ const Dashboard = () => {
   const [timetable, setTimetable] = useState<File | null>(null);
   const [timetableUrl, setTimetableUrl] = useState<string | null>(null);
   const [alertPrefs, setAlertPrefs] = useState({
+    all: true,
+    general: true,
     exams: true,
     assignments: true,
     events: true,
   });
+  // Add state for subscribed modules
+  const [subscribedModules, setSubscribedModules] = useState([]);
+  const [modulesLoading, setModulesLoading] = useState(true);
+  // For event modal
+  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+  // For mark as read (demo, local state)
+  const [readAlertIds, setReadAlertIds] = useState<string[]>([]);
+  // For module search
+  const [moduleSearch, setModuleSearch] = useState("");
+  const { toast } = useToast();
+  // Modal state for alert/event details
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalData, setModalData] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -138,6 +159,136 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    // Fetch subscribed modules for student
+    const fetchSubscribedModules = async () => {
+      if (!userData?.uid) return;
+      setModulesLoading(true);
+      try {
+        const userSubsDoc = await getDoc(doc(db, "userSubscriptions", userData.uid));
+        let subscribedModuleIds = [];
+        if (userSubsDoc.exists()) {
+          const data = userSubsDoc.data();
+          subscribedModuleIds = Object.keys(data.modules || {}).filter(mid => data.modules[mid]);
+        }
+        const modulesSnapshot = await getDocs(collection(db, "modules"));
+        const allModules = [];
+        modulesSnapshot.forEach(doc => {
+          const d = doc.data();
+          allModules.push({ id: doc.id, name: d.name, code: d.code, description: d.description });
+        });
+        const myModules = allModules.filter(m => subscribedModuleIds.includes(m.id));
+        setSubscribedModules(myModules);
+      } catch (e) {
+        setSubscribedModules([]);
+      } finally {
+        setModulesLoading(false);
+      }
+    };
+    if (userData?.role === "student") fetchSubscribedModules();
+  }, [userData]);
+
+  // Load preferences from Firestore
+  useEffect(() => {
+    const fetchPrefs = async () => {
+      if (!userData?.uid) return;
+      const userDoc = await getDoc(doc(db, "users", userData.uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        if (data.alertPrefs) setAlertPrefs(prev => ({ ...prev, ...data.alertPrefs }));
+      }
+    };
+    fetchPrefs();
+  }, [userData]);
+
+  // Save preferences to Firestore
+  const handleAlertToggle = (type: string) => {
+    const newPrefs = {
+      ...alertPrefs,
+      [type]: !alertPrefs[type],
+      ...(type === "all" && !alertPrefs.all
+        ? { general: true, exams: true, assignments: true, events: true }
+        : {}),
+      ...(type === "all" && alertPrefs.all
+        ? { general: false, exams: false, assignments: false, events: false }
+        : {}),
+    };
+    setAlertPrefs(newPrefs);
+    if (userData?.uid) {
+      // Save to Firestore
+      getDoc(doc(db, "users", userData.uid)).then(userDoc => {
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setDoc(doc(db, "users", userData.uid), { ...data, alertPrefs: newPrefs }, { merge: true });
+        }
+      });
+    }
+  };
+
+  // Filter alerts/events based on preferences
+  const filteredAlerts = alertPrefs.all
+    ? recentAlerts
+    : recentAlerts.filter(a =>
+        (alertPrefs.general && a.type === "general") ||
+        (alertPrefs.exams && a.type === "exam") ||
+        (alertPrefs.assignments && a.type === "assignment") ||
+        (alertPrefs.events && a.type === "test") // 'test' is the closest to 'event' in your types
+      );
+  const filteredEvents = alertPrefs.all
+    ? upcomingEvents
+    : upcomingEvents.filter(e =>
+        (alertPrefs.exams && e.type === "exam") ||
+        (alertPrefs.assignments && e.type === "assignment") ||
+        (alertPrefs.events && e.type === "test")
+      );
+
+  // --- Dashboard Summary Cards ---
+  const summaryCards = [
+    {
+      label: "Unread Alerts",
+      value: filteredAlerts.length,
+      icon: <Bell className="h-6 w-6 text-indigo-500" />,
+      color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
+      aria: "Number of unread alerts"
+    },
+    {
+      label: "Upcoming Events",
+      value: filteredEvents.length,
+      icon: <Calendar className="h-6 w-6 text-green-500" />,
+      color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      aria: "Number of upcoming events"
+    },
+    {
+      label: "My Modules",
+      value: subscribedModules.length,
+      icon: <BookOpen className="h-6 w-6 text-yellow-500" />,
+      color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+      aria: "Number of subscribed modules"
+    }
+  ];
+
+  // Quick Actions for students
+  const quickActions = [
+    {
+      label: "Subscribe to Module",
+      icon: <UserPlus className="h-5 w-5" />,
+      onClick: () => window.location.href = "/modules",
+      aria: "Subscribe to a new module"
+    },
+    {
+      label: "View Timetable",
+      icon: <CalendarPlus className="h-5 w-5" />,
+      onClick: () => window.location.href = "/my-timetable",
+      aria: "View your timetable"
+    },
+    {
+      label: "Contact Lecturer",
+      icon: <Mail className="h-5 w-5" />,
+      onClick: () => window.location.href = "/profile",
+      aria: "Contact your lecturer"
+    }
+  ];
+
   // Helper functions to get default images
   const getDefaultImageForType = (type: string) => {
     switch (type) {
@@ -185,85 +336,221 @@ const Dashboard = () => {
     }
   };
 
-  const handleAlertToggle = (type: string) => {
-    setAlertPrefs((prev) => ({
-      ...prev,
-      [type]: !prev[type],
-    }));
-    // TODO: Save preferences to backend or local storage
+  // --- Enhanced: Mark as read ---
+  const handleMarkAsRead = (alertId: string) => {
+    setReadAlertIds(ids => [...ids, alertId]);
+    toast({ title: "Alert marked as read" });
   };
-
-  // Timetable display section
-  const timetableSection = timetableUrl ? (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" /> Your Semester Timetable
-        </CardTitle>
-        <CardDescription>View your uploaded timetable below</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {timetableUrl.endsWith('.pdf') ? (
-          <a href={timetableUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Open Timetable PDF</a>
-        ) : (
-          <img src={timetableUrl} alt="Semester Timetable" className="max-w-full rounded shadow" />
-        )}
-      </CardContent>
-    </Card>
-  ) : null;
 
   return (
     <DashboardLayout>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Welcome, {userData?.displayName}</h1>
-        <p className="text-muted-foreground">
-          Here's what's happening with your modules
-        </p>
-        {timetableSection}
-        {loading && (
-          <div className="mt-4">
-            <p className="text-sm text-muted-foreground mb-2">Loading your dashboard...</p>
-            <Progress value={progress} className="h-2" />
-          </div>
-        )}
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Recent Alerts */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" /> Recent Alerts
-            </CardTitle>
-            <CardDescription>Latest announcements and updates</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="flex gap-3">
-                    <Skeleton className="h-16 w-16 rounded-md" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-6 w-3/4" />
-                      <Skeleton className="h-4 w-full" />
-                    </div>
+      <>
+        <TooltipProvider>
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold">Welcome, {userData?.displayName}</h1>
+            <p className="text-muted-foreground">
+              Here's what's happening with your modules
+            </p>
+            {/* --- Summary Cards --- */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 my-6">
+              {summaryCards.map(card => (
+                <Card
+                  key={card.label}
+                  className={`flex items-center gap-4 p-4 shadow-sm transition-transform duration-200 hover:scale-105 hover:shadow-md ${card.color}`}
+                  aria-label={card.aria}
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.click(); }}
+                >
+                  <div>{card.icon}</div>
+                  <div>
+                    <div className="text-2xl font-bold animate-fade-in">{card.value}</div>
+                    <div className="text-sm font-medium">{card.label}</div>
                   </div>
+                </Card>
+              ))}
+            </div>
+            {/* --- Quick Actions --- */}
+            {userData?.role === "student" && (
+              <div className="flex gap-4 mb-6" aria-label="Quick Actions">
+                {quickActions.map(action => (
+                  <Button
+                    key={action.label}
+                    variant="secondary"
+                    className="flex items-center gap-2 shadow-sm hover:shadow-md transition-all"
+                    onClick={action.onClick}
+                    aria-label={action.aria}
+                  >
+                    {action.icon} {action.label}
+                  </Button>
                 ))}
               </div>
-            ) : recentAlerts.length > 0 ? (
-              <div className="space-y-4">
-                {recentAlerts.map(alert => (
-                  <div key={alert.id}>
-                    <Alert key={alert.id} className="relative">
-                      <div className="absolute right-4 top-4 text-xs text-muted-foreground">
-                        {format(alert.createdAt, "MMM d, yyyy")}
+            )}
+            {/* My Modules section for students */}
+            {userData?.role === "student" && (
+              <div className="mt-8 mb-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span role="img" aria-label="modules">📚</span> My Modules
+                    </CardTitle>
+                    <CardDescription>Modules you are subscribed to</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {modulesLoading ? (
+                      <p>Loading...</p>
+                    ) : subscribedModules.length > 0 ? (
+                      <ul className="flex flex-wrap gap-3">
+                        {subscribedModules.map(module => (
+                          <Tooltip key={module.id}>
+                            <TooltipTrigger asChild>
+                              <li className="bg-gray-100 rounded px-3 py-1 text-sm font-medium flex items-center gap-2 cursor-pointer">
+                                <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-200 text-indigo-700 font-bold text-xs">
+                                  {module.code?.slice(0,2) || "M"}
+                                </span>
+                                {module.code} - {module.name}
+                              </li>
+                            </TooltipTrigger>
+                            <TooltipContent>{module.description}</TooltipContent>
+                          </Tooltip>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 py-4">
+                        <Image className="h-10 w-10 text-gray-300" />
+                        <p className="text-muted-foreground">You are not subscribed to any modules.</p>
                       </div>
-                      <div className="flex items-start gap-3">
-                        {alert.imageUrl ? (
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            {loading && (
+              <div className="mt-4">
+                <p className="text-sm text-muted-foreground mb-2">Loading your dashboard...</p>
+                <Progress value={progress} className="h-2 animate-pulse" />
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Recent Alerts */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" /> Recent Alerts
+                </CardTitle>
+                <CardDescription>Latest announcements and updates</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="flex gap-3">
+                        <Skeleton className="h-16 w-16 rounded-md animate-pulse" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-6 w-3/4 animate-pulse" />
+                          <Skeleton className="h-4 w-full animate-pulse" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filteredAlerts.length > 0 ? (
+                  <div className="space-y-4">
+                    {filteredAlerts.map(alert => (
+                      <div key={alert.id}>
+                        <Alert
+                          key={alert.id}
+                          className="relative cursor-pointer hover:shadow-md transition-all"
+                          tabIndex={0}
+                          aria-label={`View details for alert: ${alert.title}`}
+                          onClick={() => { setModalData({ ...alert, isAlert: true }); setModalOpen(true); }}
+                          onKeyDown={e => { if (e.key === 'Enter') { setModalData({ ...alert, isAlert: true }); setModalOpen(true); } }}
+                        >
+                          <div className="absolute right-4 top-4 text-xs text-muted-foreground">
+                            {format(alert.createdAt, "MMM d, yyyy")}
+                          </div>
+                          <div className="flex items-start gap-3">
+                            {alert.imageUrl ? (
+                              <div className="h-16 w-16 rounded-md overflow-hidden flex-shrink-0">
+                                <img 
+                                  src={alert.imageUrl} 
+                                  alt={alert.title}
+                                  className="h-full w-full object-cover" 
+                                />
+                              </div>
+                            ) : (
+                              <div className="h-16 w-16 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                <Image className="h-8 w-8 text-gray-400" />
+                              </div>
+                            )}
+                            <div>
+                              <div className="flex items-start gap-2">
+                                {getAlertIcon(alert.type)}
+                                <div>
+                                  <AlertTitle>
+                                    {alert.title} • {alert.moduleName}
+                                  </AlertTitle>
+                                  <AlertDescription>
+                                    {alert.description}
+                                  </AlertDescription>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </Alert>
+                        <AlertComments alertId={alert.id} />
+                      </div>
+                    ))}
+                    <Button asChild variant="outline" size="sm" className="w-full">
+                      <Link to="/alerts">View All Alerts</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-6">
+                    <Bell className="h-10 w-10 text-gray-300" />
+                    <p className="text-center text-muted-foreground">No recent alerts</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Upcoming Events */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" /> Upcoming Events
+                </CardTitle>
+                <CardDescription>Tests, exams and deadlines</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="flex gap-3">
+                        <Skeleton className="h-16 w-16 rounded-md animate-pulse" />
+                        <div className="flex flex-col gap-2">
+                          <Skeleton className="h-6 w-3/4 animate-pulse" />
+                          <Skeleton className="h-4 w-1/2 animate-pulse" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filteredEvents.length > 0 ? (
+                  <div className="space-y-4">
+                    {filteredEvents.map(event => (
+                      <div
+                        key={event.id}
+                        className="flex gap-3 items-start border-b pb-3 last:border-0 cursor-pointer hover:shadow-md transition-all"
+                        tabIndex={0}
+                        aria-label={`View details for event: ${event.title}`}
+                        onClick={() => { setModalData({ ...event, isAlert: false }); setModalOpen(true); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { setModalData({ ...event, isAlert: false }); setModalOpen(true); } }}
+                      >
+                        {event.imageUrl ? (
                           <div className="h-16 w-16 rounded-md overflow-hidden flex-shrink-0">
                             <img 
-                              src={alert.imageUrl} 
-                              alt={alert.title}
+                              src={event.imageUrl} 
+                              alt={event.title}
                               className="h-full w-full object-cover" 
                             />
                           </div>
@@ -272,104 +559,78 @@ const Dashboard = () => {
                             <Image className="h-8 w-8 text-gray-400" />
                           </div>
                         )}
-                        <div>
-                          <div className="flex items-start gap-2">
-                            {getAlertIcon(alert.type)}
-                            <div>
-                              <AlertTitle>
-                                {alert.title} • {alert.moduleName}
-                              </AlertTitle>
-                              <AlertDescription>
-                                {alert.description}
-                              </AlertDescription>
-                            </div>
-                          </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium">{event.title}</h4>
+                          <p className="text-sm text-muted-foreground">{event.moduleName}</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium">{format(event.date, "MMM d, yyyy")}</div>
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            event.type === "exam" 
+                              ? "bg-red-100 text-red-800" 
+                              : event.type === "assignment" 
+                                ? "bg-yellow-100 text-yellow-800" 
+                                : "bg-blue-100 text-blue-800"
+                          }`}>
+                            {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
+                          </span>
                         </div>
                       </div>
-                    </Alert>
-                    <AlertComments alertId={alert.id} />
+                    ))}
+                    <Button asChild variant="outline" size="sm" className="w-full">
+                      <Link to="/calendar">View Calendar</Link>
+                    </Button>
                   </div>
-                ))}
-                <Button asChild variant="outline" size="sm" className="w-full">
-                  <Link to="/alerts">View All Alerts</Link>
-                </Button>
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground py-6">
-                No recent alerts
-              </p>
-            )}
-          </CardContent>
-        </Card>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-6">
+                    <Calendar className="h-10 w-10 text-gray-300" />
+                    <p className="text-center text-muted-foreground">No upcoming events</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Upcoming Events */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" /> Upcoming Events
-            </CardTitle>
-            <CardDescription>Tests, exams and deadlines</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="flex gap-3">
-                    <Skeleton className="h-16 w-16 rounded-md" />
-                    <div className="flex flex-col gap-2">
-                      <Skeleton className="h-6 w-3/4" />
-                      <Skeleton className="h-4 w-1/2" />
-                    </div>
+          {/* Details Modal for Alert/Event */}
+          <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+            <DialogContent className="max-w-md">
+              {modalData && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle>{modalData.title}</DialogTitle>
+                    <DialogDescription>
+                      {modalData.moduleName && <span className="font-medium">{modalData.moduleName}</span>}
+                      <span className="ml-2 text-xs text-muted-foreground">{modalData.isAlert ? format(modalData.createdAt, "MMM d, yyyy") : format(modalData.date, "MMM d, yyyy")}</span>
+                    </DialogDescription>
+                  </DialogHeader>
+                  {modalData.imageUrl && (
+                    <img src={modalData.imageUrl} alt={modalData.title} className="w-full h-40 object-cover rounded mb-3" />
+                  )}
+                  <div className="mb-2">
+                    <span className="inline-block px-2 py-0.5 rounded text-xs font-medium mr-2 bg-indigo-100 text-indigo-800">
+                      {modalData.type?.charAt(0).toUpperCase() + modalData.type?.slice(1)}
+                    </span>
+                    <span className="text-sm text-muted-foreground">{modalData.isAlert ? "Alert" : "Event"}</span>
                   </div>
-                ))}
-              </div>
-            ) : upcomingEvents.length > 0 ? (
-              <div className="space-y-4">
-                {upcomingEvents.map(event => (
-                  <div key={event.id} className="flex gap-3 items-start border-b pb-3 last:border-0">
-                    {event.imageUrl ? (
-                      <div className="h-16 w-16 rounded-md overflow-hidden flex-shrink-0">
-                        <img 
-                          src={event.imageUrl} 
-                          alt={event.title}
-                          className="h-full w-full object-cover" 
-                        />
-                      </div>
-                    ) : (
-                      <div className="h-16 w-16 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        <Image className="h-8 w-8 text-gray-400" />
-                      </div>
+                  <div className="mb-4">
+                    {modalData.description}
+                  </div>
+                  <div className="flex gap-2">
+                    {modalData.isAlert && (
+                      <Button size="sm" variant="secondary" onClick={() => { setModalOpen(false); }}>
+                        Mark as Read
+                      </Button>
                     )}
-                    <div className="flex-1">
-                      <h4 className="font-medium">{event.title}</h4>
-                      <p className="text-sm text-muted-foreground">{event.moduleName}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">{format(event.date, "MMM d, yyyy")}</div>
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        event.type === "exam" 
-                          ? "bg-red-100 text-red-800" 
-                          : event.type === "assignment" 
-                            ? "bg-yellow-100 text-yellow-800" 
-                            : "bg-blue-100 text-blue-800"
-                      }`}>
-                        {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
-                      </span>
-                    </div>
+                    <Button size="sm" variant="outline" onClick={() => setModalOpen(false)}>
+                      Close
+                    </Button>
                   </div>
-                ))}
-                <Button asChild variant="outline" size="sm" className="w-full">
-                  <Link to="/calendar">View Calendar</Link>
-                </Button>
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground py-6">
-                No upcoming events
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+        </TooltipProvider>
+      </>
     </DashboardLayout>
   );
 };

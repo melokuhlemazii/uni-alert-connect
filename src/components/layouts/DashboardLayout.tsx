@@ -12,7 +12,10 @@ import {
   AlertTriangle,
   BarChart3,
   Clock,
-  Plus
+  Plus,
+  Moon,
+  Sun,
+  UserCircle
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -23,6 +26,13 @@ import {
 } from "@/components/ui/sheet";
 import { useAuth } from "@/context/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -33,6 +43,23 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  // Move darkMode state to localStorage for global theme persistence
+  const [darkMode, setDarkMode] = React.useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("theme") === "dark";
+    }
+    return false;
+  });
+
+  React.useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [darkMode]);
 
   const handleLogout = async () => {
     await logout();
@@ -172,7 +199,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <Link key={item.path} to={item.path}>
                 <Button
                   variant={isActive(item.path) ? "secondary" : "ghost"}
-                  className="w-full justify-start"
+                  className={`w-full justify-start ${isActive(item.path) ? "bg-indigo-100 dark:bg-indigo-900" : ""}`}
                 >
                   {item.icon}
                   {item.name}
@@ -182,7 +209,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
         </div>
       </div>
-      <div className="mt-auto p-4">
+      <div className="mt-auto p-4 flex flex-col gap-2">
         <Button
           onClick={handleLogout}
           variant="outline"
@@ -191,23 +218,30 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           <LogOut className="mr-2 h-4 w-4" />
           Log out
         </Button>
+        <Button
+          onClick={() => setDarkMode((d) => !d)}
+          variant="ghost"
+          className="w-full justify-start"
+        >
+          {darkMode ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+          {darkMode ? "Light Mode" : "Dark Mode"}
+        </Button>
       </div>
     </>
   );
 
   return (
-    <div className="flex min-h-screen">
+    <div className={`flex min-h-screen ${darkMode ? "dark bg-gray-950 text-white" : "bg-gray-50"}`}> 
       {/* Sidebar for desktop */}
       {!isMobile && (
-        <div className="hidden md:flex w-64 flex-col border-r bg-white">
+        <div className="hidden md:flex w-64 flex-col border-r bg-white dark:bg-gray-900">
           <NavContent />
         </div>
       )}
-      
       {/* Main content */}
       <div className="flex flex-col flex-1">
-        {/* Top nav for mobile */}
-        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-white px-4 md:px-6">
+        {/* Top nav for mobile and desktop */}
+        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-white dark:bg-gray-900 px-4 md:px-6">
           {isMobile && (
             <Sheet>
               <SheetTrigger asChild>
@@ -226,11 +260,27 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               {navItems.find(item => isActive(item.path))?.name || "Dashboard"}
             </h1>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm">{userData?.displayName}</span>
+          <div className="flex items-center gap-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <UserCircle className="h-7 w-7" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate("/profile")}>Profile</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/system-settings")}>Settings</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setDarkMode((d) => !d)}>
+                  {darkMode ? "Light Mode" : "Dark Mode"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <span className="text-sm font-medium">{userData?.displayName}</span>
           </div>
         </header>
-        
         {/* Page content */}
         <main className="flex-1 p-4 md:p-6">
           {children}

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,84 +5,81 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { AlertTriangle, BookOpen, Calendar as CalendarIcon, Info } from "lucide-react";
+import { useAuth } from "@/context/useAuth";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 
 interface EventType {
   id: string;
   title: string;
   date: Date;
-  type: "test" | "exam" | "assignment";
+  type: "test" | "exam" | "assignment" | "general";
   moduleId: string;
   moduleName: string;
   description?: string;
 }
 
 const CalendarPage = () => {
+  const { userData } = useAuth();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [events, setEvents] = useState<EventType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDateEvents, setSelectedDateEvents] = useState<EventType[]>([]);
 
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchEventsAndAlerts = async () => {
+      setLoading(true);
       try {
-        // For demo purposes, we'll create some placeholder events
-        // In a real app, this would fetch from Firestore based on the user's subscriptions
-        const demoEvents: EventType[] = [
-          {
-            id: "1",
-            title: "Midterm Exam",
-            date: new Date(2025, 4, 10), // May 10, 2025
-            type: "exam",
-            moduleId: "csy301",
-            moduleName: "Software Development",
-            description: "Covers all material from weeks 1-6"
-          },
-          {
-            id: "2",
-            title: "Assignment Due",
-            date: new Date(2025, 4, 15), // May 15, 2025
-            type: "assignment",
-            moduleId: "isy201",
-            moduleName: "Information Systems",
-            description: "Final project submission"
-          },
-          {
-            id: "3",
-            title: "Weekly Test",
-            date: new Date(2025, 4, 5), // May 5, 2025
-            type: "test",
-            moduleId: "csy202",
-            moduleName: "Databases",
-            description: "SQL queries and database design"
-          },
-          {
-            id: "4",
-            title: "Final Exam",
-            date: new Date(2025, 5, 20), // June 20, 2025
-            type: "exam",
-            moduleId: "ce101",
-            moduleName: "Introduction to Civil Engineering"
-          },
-          {
-            id: "5",
-            title: "Lab Report Due",
-            date: new Date(2025, 4, 25), // May 25, 2025
-            type: "assignment",
-            moduleId: "ee201",
-            moduleName: "Circuit Theory"
+        if (!userData?.uid) return;
+        // Get subscribed modules
+        const userSubsDoc = await getDoc(doc(db, "userSubscriptions", userData.uid));
+        let subscribedModuleIds: string[] = [];
+        if (userSubsDoc.exists()) {
+          const data = userSubsDoc.data();
+          subscribedModuleIds = Object.keys(data.modules || {}).filter(mid => data.modules[mid]);
+        }
+        // Fetch events
+        const eventsSnapshot = await getDocs(collection(db, "events"));
+        const fetchedEvents: EventType[] = [];
+        eventsSnapshot.forEach(doc => {
+          const d = doc.data();
+          if (subscribedModuleIds.includes(d.moduleId)) {
+            fetchedEvents.push({
+              id: doc.id,
+              title: d.title,
+              date: d.date?.toDate ? d.date.toDate() : new Date(d.date),
+              type: d.type,
+              moduleId: d.moduleId,
+              moduleName: d.moduleName,
+              description: d.description
+            });
           }
-        ];
-        
-        setEvents(demoEvents);
+        });
+        // Fetch alerts
+        const alertsSnapshot = await getDocs(collection(db, "alerts"));
+        alertsSnapshot.forEach(doc => {
+          const d = doc.data();
+          if (subscribedModuleIds.includes(d.moduleId)) {
+            fetchedEvents.push({
+              id: doc.id,
+              title: d.title,
+              date: d.createdAt?.toDate ? d.createdAt.toDate() : new Date(d.createdAt),
+              type: d.type || "general",
+              moduleId: d.moduleId,
+              moduleName: d.moduleName,
+              description: d.description
+            });
+          }
+        });
+        setEvents(fetchedEvents);
       } catch (error) {
-        console.error("Error fetching events:", error);
+        setEvents([]);
       } finally {
         setLoading(false);
       }
     };
-    
-    fetchEvents();
-  }, []);
+    fetchEventsAndAlerts();
+  }, [userData]);
 
   useEffect(() => {
     if (date) {

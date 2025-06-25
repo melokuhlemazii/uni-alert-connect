@@ -17,23 +17,30 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, userData } = useAuth();
   const navigate = useNavigate();
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return; // Prevent double submission
     setIsLoading(true);
-
     try {
       await login(email, password);
-      navigate("/home"); // Redirect to role-based landing after login
+      setLoginSuccess(true); // Set flag to trigger redirect in useEffect
     } catch (error) {
       console.error("Login error:", error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Redirect after userData is available
+  React.useEffect(() => {
+    if (loginSuccess && userData) {
+      navigate("/home");
+    }
+  }, [loginSuccess, userData, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

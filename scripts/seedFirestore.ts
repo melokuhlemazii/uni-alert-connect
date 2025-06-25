@@ -5,23 +5,34 @@ import { getFirestore, doc, setDoc, collection, addDoc } from "firebase/firestor
 
 // TODO: Replace with your Firebase config
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyD5G5yIQznznEVL8f4SvMahpWLEAwklaHI",
+  authDomain: "hhbjn-95b25.firebaseapp.com",
+  projectId: "hhbjn-95b25",
+  storageBucket: "hhbjn-95b25.appspot.com",
+  messagingSenderId: "861949977935",
+  appId: "1:861949977935:web:e885bc39b87cb2549e113a"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function seed() {
-  // 1. Seed modules
+  // 1. Seed modules (variety: tech, engineering, business, health, arts)
   const modules = [
-    { id: "1", code: "CS101", name: "Computer Science Fundamentals", description: "Introduction to programming and computer science concepts" },
-    { id: "2", code: "CS201", name: "Data Structures and Algorithms", description: "Advanced programming concepts and algorithm design" },
-    { id: "3", code: "CS301", name: "Web Development", description: "Modern web development using React and Node.js" }
+    { id: "CS101", code: "CS101", name: "Computer Science Fundamentals", description: "Intro to programming and computer science concepts.", field: "Technology" },
+    { id: "ENG201", code: "ENG201", name: "Engineering Mechanics", description: "Statics, dynamics, and mechanics for engineers.", field: "Engineering" },
+    { id: "BUS110", code: "BUS110", name: "Principles of Business", description: "Foundations of business, management, and entrepreneurship.", field: "Business" },
+    { id: "HLT120", code: "HLT120", name: "Health & Wellness", description: "Personal health, wellness, and nutrition.", field: "Health" },
+    { id: "ART205", code: "ART205", name: "Modern Art History", description: "Study of modern and contemporary art movements.", field: "Arts" },
+    { id: "PHY150", code: "PHY150", name: "Physics I", description: "Classical mechanics, motion, and energy.", field: "Science" },
+    { id: "MTH101", code: "MTH101", name: "Calculus I", description: "Limits, derivatives, and integrals.", field: "Mathematics" },
+    { id: "CIV210", code: "CIV210", name: "Civil Engineering Materials", description: "Properties and testing of construction materials.", field: "Engineering" },
+    { id: "BIO140", code: "BIO140", name: "Biology Basics", description: "Cell biology, genetics, and evolution.", field: "Science" },
+    { id: "MKT200", code: "MKT200", name: "Marketing Principles", description: "Core marketing concepts and strategies.", field: "Business" },
+    { id: "NOPS", code: "NOPS", name: "Networking and Operating Systems", description: "Covers computer networks and operating system fundamentals.", field: "Technology" },
+    { id: "SADS", code: "SADS", name: "Systems Analysis and Design", description: "System development life cycle, analysis, and design techniques.", field: "Technology" },
+    { id: "DSA", code: "DSA", name: "Data Structures and Algorithms", description: "Advanced programming concepts and algorithm design.", field: "Technology" },
+    { id: "INFM", code: "INFM", name: "Information Management", description: "Principles of managing information systems and databases.", field: "Technology" }
   ];
   for (const mod of modules) {
     await setDoc(doc(db, "modules", mod.id), mod);
