@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, query, orderBy, getDocs, Timestamp } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -21,70 +21,39 @@ const AlertsPage = () => {
   const [filterType, setFilterType] = useState("all");
 
   useEffect(() => {
-    const fetchAlerts = async () => {
-      try {
-        // Simulate loading progress
-        const interval = setInterval(() => {
-          setProgress((prev) => {
-            if (prev >= 100) {
-              clearInterval(interval);
-              return 100;
-            }
-            return prev + 20;
-          });
-        }, 300);
-
-        // Fetch real alerts from Firestore
-        const alertsRef = collection(db, "alerts");
-        const q = query(alertsRef, orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-        
-        const fetchedAlerts: AlertItem[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          fetchedAlerts.push({
-            id: doc.id,
-            title: data.title,
-            description: data.description,
-            type: data.type,
-            moduleId: data.moduleId,
-            moduleName: data.moduleName,
-            createdAt: data.createdAt instanceof Timestamp 
-              ? data.createdAt.toDate() 
-              : new Date(),
-            imageUrl: data.imageUrl || getDefaultImageForType(data.type)
-          });
+    // Use Firestore real-time listener for alerts
+    const alertsRef = collection(db, "alerts");
+    const q = query(alertsRef, orderBy("createdAt", "desc"));
+    setLoading(true);
+    setProgress(10);
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedAlerts: AlertItem[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        fetchedAlerts.push({
+          id: doc.id,
+          title: data.title,
+          description: data.description,
+          type: data.type,
+          moduleId: data.moduleId,
+          moduleName: data.moduleName,
+          createdAt: data.createdAt instanceof Timestamp 
+            ? data.createdAt.toDate() 
+            : new Date(),
+          imageUrl: data.imageUrl || getDefaultImageForType(data.type)
         });
-        
-        setAlerts(fetchedAlerts);
-        
-        // If no alerts were found, use demo data as fallback
-        if (fetchedAlerts.length === 0) {
-          import("@/utils/alertsData").then(({ demoAlerts }) => {
-            setAlerts(demoAlerts);
-            console.log("Using demo alerts as fallback");
-          });
-        }
-        
-        // Simulate network delay
-        setTimeout(() => {
-          clearInterval(interval);
-          setProgress(100);
-          setLoading(false);
-        }, 1500);
-      } catch (error) {
-        console.error("Error fetching alerts:", error);
-        
-        // Fallback to demo data on error
-        import("@/utils/alertsData").then(({ demoAlerts }) => {
-          setAlerts(demoAlerts);
-          console.log("Error fetching alerts, using demo data");
-          setLoading(false);
-        });
-      }
-    };
-    
-    fetchAlerts();
+      });
+      setAlerts(fetchedAlerts);
+      setProgress(100);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching alerts:", error);
+      import("@/utils/alertsData").then(({ demoAlerts }) => {
+        setAlerts(demoAlerts);
+        setLoading(false);
+      });
+    });
+    return () => unsubscribe();
   }, [userData]);
 
   // Helper function to get default image based on alert type

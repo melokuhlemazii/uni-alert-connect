@@ -109,8 +109,9 @@ const CalendarPage = () => {
     const dateKey = format(day, "yyyy-MM-dd");
     if (eventDates[dateKey]) {
       const types = new Set(eventDates[dateKey].map(e => e.type));
-      
-      if (types.has("exam")) {
+      if (types.has("event")) {
+        return "bg-purple-200 text-purple-900 rounded-full";
+      } else if (types.has("exam")) {
         return "bg-red-200 text-red-900 rounded-full";
       } else if (types.has("assignment")) {
         return "bg-yellow-200 text-yellow-900 rounded-full";
@@ -182,6 +183,10 @@ const CalendarPage = () => {
                 />
               )}
               <div className="mt-4 flex gap-4 text-sm">
+                <div className="flex items-center">
+                  <div className="h-3 w-3 rounded-full bg-purple-200 mr-1"></div>
+                  <span>Event</span>
+                </div>
                 <div className="flex items-center">
                   <div className="h-3 w-3 rounded-full bg-red-200 mr-1"></div>
                   <span>Exam</span>

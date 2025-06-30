@@ -70,7 +70,7 @@ const StudentDashboard = () => {
         const fetchedAlerts: AlertItem[] = [];
         snapshot.forEach(doc => {
           const d = doc.data();
-          if (subscribedModuleIds.includes(d.moduleId)) {
+          if (subscribedModuleIds.includes(d.moduleId) && d.type !== "event") {
             fetchedAlerts.push({
               id: doc.id,
               title: d.title,
@@ -94,7 +94,7 @@ const StudentDashboard = () => {
             fetchedEvents.push({
               id: doc.id,
               title: d.title,
-              date: d.scheduledAt?.toDate ? d.scheduledAt.toDate() : new Date(),
+              date: d.scheduledDate?.toDate ? d.scheduledDate.toDate() : new Date(),
               type: d.type,
               moduleId: d.moduleId,
               moduleName: d.moduleName,
@@ -185,13 +185,19 @@ const StudentDashboard = () => {
             {loading ? (
               <p>Loading...</p>
             ) : modules.length > 0 ? (
-              <ul className="flex flex-wrap gap-3">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {modules.map(module => (
-                  <li key={module.id} className="bg-gray-100 rounded px-3 py-1 text-sm font-medium">
-                    {module.code} - {module.name}
-                  </li>
+                  <Card key={module.id} className="shadow-sm border border-gray-200">
+                    <CardContent className="p-4 flex flex-col items-start">
+                      <div className="font-semibold text-base mb-1">{module.name}</div>
+                      <div className="text-xs text-muted-foreground mb-2">{module.code}</div>
+                      {module.description && (
+                        <div className="text-xs text-gray-400 line-clamp-2">{module.description}</div>
+                      )}
+                    </CardContent>
+                  </Card>
                 ))}
-              </ul>
+              </div>
             ) : (
               <p className="text-muted-foreground">You are not subscribed to any modules.</p>
             )}

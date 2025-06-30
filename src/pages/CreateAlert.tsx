@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, Timestamp, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -23,7 +23,7 @@ const CreateAlert = () => {
   const { userData } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -33,19 +33,36 @@ const CreateAlert = () => {
     scheduledDate: ""
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [modules, setModules] = useState<{ id: string; name: string; code: string }[]>([]);
 
-  // Sample modules - in a real app, fetch from Firestore
-  const modules = [
-    { id: "1", name: "Computer Science Fundamentals", code: "CS101" },
-    { id: "2", name: "Data Structures and Algorithms", code: "CS201" },
-    { id: "3", name: "Web Development", code: "CS301" }
-  ];
-
+  // Fetch modules taught by this lecturer
   useEffect(() => {
     if (userData?.role !== "lecturer") {
       navigate("/dashboard");
       return;
     }
+    if (!userData?.uid) return;
+    // Listen to lecturerModules/<lecturerId> for real-time updates
+    const lecturerModulesRef = collection(db, "lecturerModules");
+    const q = query(lecturerModulesRef, where("lecturerId", "==", userData.uid));
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const lecturerModules: { id: string; name: string; code: string }[] = [];
+      for (const docSnap of snapshot.docs) {
+        const data = docSnap.data();
+        // Fetch module details from modules collection
+        const moduleDoc = await getDoc(doc(db, "modules", data.moduleId));
+        if (moduleDoc.exists()) {
+          const mod = moduleDoc.data();
+          lecturerModules.push({
+            id: moduleDoc.id,
+            name: mod.name,
+            code: mod.code
+          });
+        }
+      }
+      setModules(lecturerModules);
+    });
+    return () => unsubscribe();
   }, [userData, navigate]);
 
   const handleInputChange = (field: string, value: string) => {
@@ -164,12 +181,13 @@ const CreateAlert = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Alert Type *</Label>
+                <Label>Alert/Event Type *</Label>
                 <Select onValueChange={(value) => handleInputChange('type', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="event">Event</SelectItem>
                     <SelectItem value="exam">Exam</SelectItem>
                     <SelectItem value="test">Test</SelectItem>
                     <SelectItem value="assignment">Assignment</SelectItem>
@@ -183,14 +201,18 @@ const CreateAlert = () => {
                 <Label>Module *</Label>
                 <Select onValueChange={handleModuleChange}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select module" />
+                    <SelectValue placeholder={modules.length === 0 ? "No modules assigned" : "Select module"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {modules.map((module) => (
-                      <SelectItem key={module.id} value={module.id}>
-                        {module.name} ({module.code})
-                      </SelectItem>
-                    ))}
+                    {modules.length === 0 ? (
+                      <div className="px-4 py-2 text-muted-foreground">No modules found. Add modules in My Modules page.</div>
+                    ) : (
+                      modules.map((module) => (
+                        <SelectItem key={module.id} value={module.id}>
+                          {module.name} ({module.code})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

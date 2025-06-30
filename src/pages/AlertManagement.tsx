@@ -355,7 +355,7 @@ const AlertManagement = () => {
       {/* Add/Edit Dialog */}
       {showDialog && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
-          <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow-lg w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">{dialogMode === 'add' ? 'New Alert/Event' : 'Edit Alert/Event'}</h2>
             <form onSubmit={handleAddOrEdit} className="space-y-4">
               <div>

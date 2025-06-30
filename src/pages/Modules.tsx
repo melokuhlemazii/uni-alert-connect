@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, getDoc, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -35,55 +35,55 @@ const Modules = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // For demo purposes adding some placeholder data
-        // In a real app, you would fetch this from Firestore
-        const departmentsData = [
-          { id: "it", name: "Information Technology" },
-          { id: "ce", name: "Civil Engineering" },
-          { id: "ee", name: "Electrical Engineering" },
-          { id: "cs", name: "Computer Science" },
-          { id: "me", name: "Mechanical Engineering" }
-        ];
-        
-        const modulesData = [
-          { id: "csy301", code: "CSY301", name: "Software Development", departmentId: "cs", departmentName: "Computer Science" },
-          { id: "isy201", code: "ISY201", name: "Information Systems", departmentId: "it", departmentName: "Information Technology" },
-          { id: "csy202", code: "CSY202", name: "Databases", departmentId: "cs", departmentName: "Computer Science" },
-          { id: "ce101", code: "CE101", name: "Introduction to Civil Engineering", departmentId: "ce", departmentName: "Civil Engineering" },
-          { id: "ee201", code: "EE201", name: "Circuit Theory", departmentId: "ee", departmentName: "Electrical Engineering" },
-          { id: "me301", code: "ME301", name: "Machine Design", departmentId: "me", departmentName: "Mechanical Engineering" },
-          { id: "it310", code: "IT310", name: "Network Security", departmentId: "it", departmentName: "Information Technology" },
-          { id: "csy405", code: "CSY405", name: "Artificial Intelligence", departmentId: "cs", departmentName: "Computer Science" }
-        ];
-
-        setDepartments(departmentsData);
-        setModules(modulesData);
-        
-        // Fetch user subscriptions if logged in
-        if (userData?.uid) {
-          const userSubscriptionsRef = doc(db, "userSubscriptions", userData.uid);
-          const userSubscriptionsDoc = await getDoc(userSubscriptionsRef);
-          
-          if (userSubscriptionsDoc.exists()) {
-            const userSubscriptions = userSubscriptionsDoc.data().modules || {};
-            setSubscriptions(userSubscriptions);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching modules:", error);
-        toast({
-          title: "Error fetching modules",
-          description: "There was an error loading your modules",
-          variant: "destructive"
+    let unsubscribeModules: (() => void) | undefined;
+    let unsubscribeSubscriptions: (() => void) | undefined;
+    setLoading(true);
+    // Fetch modules from Firestore in real-time
+    const modulesRef = collection(db, "modules");
+    const q = query(modulesRef, orderBy("name"));
+    unsubscribeModules = onSnapshot(q, (modulesSnapshot) => {
+      const modulesData: Module[] = [];
+      modulesSnapshot.forEach((doc) => {
+        const data = doc.data();
+        modulesData.push({
+          id: doc.id,
+          code: data.code,
+          name: data.name,
+          departmentId: data.departmentId || "",
+          departmentName: data.departmentName || "",
+          description: data.description || ""
         });
-      } finally {
-        setLoading(false);
-      }
+      });
+      setModules(modulesData);
+      setLoading(false);
+    }, (error) => {
+      setLoading(false);
+    });
+    // Real-time listener for user subscriptions
+    if (userData?.uid) {
+      const userSubscriptionsRef = doc(db, "userSubscriptions", userData.uid);
+      unsubscribeSubscriptions = onSnapshot(userSubscriptionsRef, (userSubscriptionsDoc) => {
+        if (userSubscriptionsDoc.exists()) {
+          const userSubscriptions = userSubscriptionsDoc.data().modules || {};
+          setSubscriptions(userSubscriptions);
+        } else {
+          setSubscriptions({});
+        }
+      });
+    }
+    // Optionally, fetch departments from Firestore if you want real-time departments
+    // For now, keep departments hardcoded or fetch as needed
+    setDepartments([
+      { id: "it", name: "Information Technology" },
+      { id: "ce", name: "Civil Engineering" },
+      { id: "ee", name: "Electrical Engineering" },
+      { id: "cs", name: "Computer Science" },
+      { id: "me", name: "Mechanical Engineering" }
+    ]);
+    return () => {
+      if (unsubscribeModules) unsubscribeModules();
+      if (unsubscribeSubscriptions) unsubscribeSubscriptions();
     };
-    
-    fetchData();
   }, [userData]);
 
   const toggleSubscription = (moduleId: string) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc } from "firebase/firestore";
+import { collection, doc, updateDoc, deleteDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -86,14 +86,9 @@ const UserManagement = () => {
       navigate("/dashboard");
       return;
     }
-    
-    fetchUsers();
-  }, [userData, navigate]);
-
-  const fetchUsers = async () => {
-    try {
-      const usersSnapshot = await getDocs(collection(db, "users"));
-      
+    setLoading(true);
+    const usersRef = collection(db, "users");
+    const unsubscribe = onSnapshot(usersRef, (usersSnapshot) => {
       const fetchedUsers: User[] = [];
       usersSnapshot.forEach((doc) => {
         const userData = doc.data();
@@ -110,19 +105,19 @@ const UserManagement = () => {
                 : null,
         });
       });
-      
       setUsers(fetchedUsers);
-    } catch (error) {
+      setLoading(false);
+    }, (error) => {
       console.error("Error fetching users:", error);
       toast({
         title: "Error",
         description: "Failed to load users",
         variant: "destructive",
       });
-    } finally {
       setLoading(false);
-    }
-  };
+    });
+    return () => unsubscribe();
+  }, [userData, navigate]);
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     try {
@@ -287,7 +282,7 @@ const UserManagement = () => {
       {/* Add User Dialog */}
       {showAddDialog && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
-          <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow-lg w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">Add User</h2>
             <form onSubmit={handleAddUser} className="space-y-4">
               <div>
@@ -318,16 +313,16 @@ const UserManagement = () => {
               </div>
               <div>
                 <label className="block mb-1">Role</label>
-                <select
-                  className="w-full border rounded p-2"
-                  value={addForm.role}
-                  onChange={e => setAddForm(f => ({ ...f, role: e.target.value }))}
-                  required
-                >
-                  <option value="student">Student</option>
-                  <option value="lecturer">Lecturer</option>
-                  <option value="admin">Admin</option>
-                </select>
+                <Select value={addForm.role} onValueChange={value => setAddForm(f => ({ ...f, role: value }))} required>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">Student</SelectItem>
+                    <SelectItem value="lecturer">Lecturer</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>

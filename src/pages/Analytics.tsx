@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -20,13 +20,19 @@ const Analytics = () => {
   });
   const [loading, setLoading] = useState(true);
 
+  // Remove hardcoded chart data and compute from Firestore
+  const [monthlyAlerts, setMonthlyAlerts] = useState([]);
+  const [alertTypes, setAlertTypes] = useState([]);
+
   useEffect(() => {
     if (userData?.role !== "admin") {
       navigate("/dashboard");
       return;
     }
-    
     fetchAnalytics();
+    // Listen for real-time updates to alerts
+    const unsubscribe = onSnapshot(collection(db, "alerts"), () => fetchAnalytics());
+    return () => unsubscribe();
   }, [userData, navigate]);
 
   const fetchAnalytics = async () => {
@@ -34,44 +40,57 @@ const Analytics = () => {
       // Fetch users
       const usersSnapshot = await getDocs(collection(db, "users"));
       const totalUsers = usersSnapshot.size;
-      
       // Fetch alerts
       const alertsSnapshot = await getDocs(collection(db, "alerts"));
       const totalAlerts = alertsSnapshot.size;
-      
-      // Fetch events
-      const eventsSnapshot = await getDocs(collection(db, "events"));
-      const totalEvents = eventsSnapshot.size;
-      
+      // Fetch events (alerts of type 'event')
+      let totalEvents = 0;
+      const alertTypeCounts = {};
+      const monthlyCounts = Array(12).fill(0);
+      alertsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+        const month = createdAt.getMonth();
+        monthlyCounts[month]++;
+        alertTypeCounts[data.type] = (alertTypeCounts[data.type] || 0) + 1;
+        if (data.type === "event") totalEvents++;
+      });
       setStats({
         totalUsers,
         totalAlerts,
         totalEvents,
-        activeUsers: Math.floor(totalUsers * 0.8) // Mock active users
+        activeUsers: Math.floor(totalUsers * 0.8)
       });
+      // Prepare chart data
+      setMonthlyAlerts([
+        { name: "Jan", alerts: monthlyCounts[0] },
+        { name: "Feb", alerts: monthlyCounts[1] },
+        { name: "Mar", alerts: monthlyCounts[2] },
+        { name: "Apr", alerts: monthlyCounts[3] },
+        { name: "May", alerts: monthlyCounts[4] },
+        { name: "Jun", alerts: monthlyCounts[5] },
+        { name: "Jul", alerts: monthlyCounts[6] },
+        { name: "Aug", alerts: monthlyCounts[7] },
+        { name: "Sep", alerts: monthlyCounts[8] },
+        { name: "Oct", alerts: monthlyCounts[9] },
+        { name: "Nov", alerts: monthlyCounts[10] },
+        { name: "Dec", alerts: monthlyCounts[11] },
+      ]);
+      // Alert type pie chart
+      const typeColors = {
+        exam: "#ef4444",
+        assignment: "#f59e0b",
+        test: "#3b82f6",
+        general: "#10b981",
+        event: "#22d3ee"
+      };
+      setAlertTypes(Object.entries(alertTypeCounts).map(([name, value]) => ({ name, value, color: typeColors[name] || "#8884d8" })));
     } catch (error) {
       console.error("Error fetching analytics:", error);
     } finally {
       setLoading(false);
     }
   };
-
-  // Sample data for charts
-  const monthlyAlerts = [
-    { name: "Jan", alerts: 12 },
-    { name: "Feb", alerts: 19 },
-    { name: "Mar", alerts: 15 },
-    { name: "Apr", alerts: 25 },
-    { name: "May", alerts: 22 },
-    { name: "Jun", alerts: 18 }
-  ];
-
-  const alertTypes = [
-    { name: "Exams", value: 35, color: "#ef4444" },
-    { name: "Assignments", value: 25, color: "#f59e0b" },
-    { name: "Tests", value: 20, color: "#3b82f6" },
-    { name: "General", value: 20, color: "#10b981" }
-  ];
 
   return (
     <DashboardLayout>

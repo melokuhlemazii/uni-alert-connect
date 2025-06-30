@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { Clock, Upload, Download, Trash, Image } from "lucide-react";
-import { collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
@@ -36,20 +36,21 @@ const MyTimetable = () => {
       navigate("/dashboard");
       return;
     }
-    // Fetch user's existing timetable from Firestore
-    const fetchTimetable = async () => {
-      if (!userData?.uid) return;
-      const userDoc = await getDoc(doc(db, "users", userData.uid));
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        if (data.timetableUrl) setTimetableUrl(data.timetableUrl);
-      }
-    };
-    fetchTimetable();
-
-    // Fetch alerts/events for calendar
-    const fetchCalendarItems = async () => {
-      const snapshot = await getDocs(collection(db, "alerts"));
+    // Real-time listener for user's timetable
+    let unsubscribeTimetable: (() => void) | undefined;
+    if (userData?.uid) {
+      const userDocRef = doc(db, "users", userData.uid);
+      unsubscribeTimetable = onSnapshot(userDocRef, (userDoc) => {
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          if (data.timetableUrl) setTimetableUrl(data.timetableUrl);
+          else setTimetableUrl("");
+        }
+      });
+    }
+    // Real-time listener for calendar items (alerts/events)
+    const alertsRef = collection(db, "alerts");
+    const unsubscribeAlerts = onSnapshot(alertsRef, (snapshot) => {
       const items: CalendarItem[] = [];
       snapshot.forEach(doc => {
         const data = doc.data();
@@ -66,8 +67,11 @@ const MyTimetable = () => {
       // Sort by date ascending
       items.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
       setCalendarItems(items);
+    });
+    return () => {
+      if (unsubscribeTimetable) unsubscribeTimetable();
+      unsubscribeAlerts();
     };
-    fetchCalendarItems();
   }, [userData, navigate]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {

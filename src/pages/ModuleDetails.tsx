@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import DiscussionForum from "@/components/DiscussionForum";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ const ModuleDetails = () => {
   const [description, setDescription] = useState<string>("");
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState<{uid: string, displayName: string, email: string}[]>([]);
+  const [alerts, setAlerts] = useState<any[]>([]);
   const { userData } = useAuth();
 
   useEffect(() => {
@@ -47,6 +49,43 @@ const ModuleDetails = () => {
       setLoading(false);
     };
     fetchModule();
+  }, [moduleId]);
+
+  // Fetch enrolled students
+  useEffect(() => {
+    if (!moduleId) return;
+    const unsub = onSnapshot(collection(db, "userSubscriptions"), (snapshot) => {
+      const enrolled: {uid: string, displayName: string, email: string}[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.modules && data.modules[moduleId]) {
+          // Fetch user profile
+          onSnapshot(doc(db, "users", docSnap.id), (userDoc) => {
+            if (userDoc.exists()) {
+              const user = userDoc.data();
+              enrolled.push({ uid: docSnap.id, displayName: user.displayName || "", email: user.email || "" });
+              setStudents([...enrolled]);
+            }
+          });
+        }
+      });
+      if (enrolled.length === 0) setStudents([]);
+    });
+    return () => unsub();
+  }, [moduleId]);
+
+  // Fetch alerts for this module
+  useEffect(() => {
+    if (!moduleId) return;
+    const q = query(collection(db, "alerts"), where("moduleId", "==", moduleId));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const moduleAlerts: any[] = [];
+      snapshot.forEach((docSnap) => {
+        moduleAlerts.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setAlerts(moduleAlerts);
+    });
+    return () => unsub();
   }, [moduleId]);
 
   const handleSave = async () => {
@@ -108,10 +147,46 @@ const ModuleDetails = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="students">Enrolled Students</TabsTrigger>
+            <TabsTrigger value="alerts">Alerts</TabsTrigger>
             <TabsTrigger value="forum">Discussion Forum</TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
             <div className="mt-4">Module overview and resources go here.</div>
+          </TabsContent>
+          <TabsContent value="students">
+            <div className="mt-4">
+              <h3 className="font-semibold mb-2">Enrolled Students</h3>
+              {students.length === 0 ? (
+                <p className="text-muted-foreground">No students enrolled.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {students.map((s) => (
+                    <li key={s.uid} className="border-b py-1">
+                      {s.displayName} <span className="text-xs text-muted-foreground">({s.email})</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </TabsContent>
+          <TabsContent value="alerts">
+            <div className="mt-4">
+              <h3 className="font-semibold mb-2">Module Alerts</h3>
+              {alerts.length === 0 ? (
+                <p className="text-muted-foreground">No alerts for this module.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {alerts.map((alert) => (
+                    <li key={alert.id} className="border rounded p-2">
+                      <div className="font-medium">{alert.title}</div>
+                      <div className="text-xs text-muted-foreground">{alert.description}</div>
+                      <div className="text-xs text-muted-foreground">{alert.type}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </TabsContent>
           <TabsContent value="forum">
             {moduleId && <DiscussionForum moduleId={moduleId} />}

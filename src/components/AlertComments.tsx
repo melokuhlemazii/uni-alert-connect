@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/useAuth";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -33,53 +33,34 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showComments, setShowComments] = useState(false);
 
-  const fetchComments = async () => {
-    try {
-      setLoading(true);
-      
-      // Simulate loading progress
-      const interval = setInterval(() => {
-        setLoadingProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 20;
-        });
-      }, 200);
-      
-      // Query Firestore for comments
-      const commentsRef = collection(db, "comments");
-      const q = query(
-        commentsRef, 
-        where("alertId", "==", alertId),
-        orderBy("createdAt", "desc")
-      );
-      const querySnapshot = await getDocs(q);
-      
+  useEffect(() => {
+    if (!showComments) return;
+    setLoading(true);
+    setLoadingProgress(10);
+    const commentsRef = collection(db, "comments");
+    const q = query(
+      commentsRef,
+      where("alertId", "==", alertId),
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedComments: Comment[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         fetchedComments.push({
           id: doc.id,
           text: data.text,
-          createdAt: data.createdAt instanceof Timestamp 
-            ? data.createdAt.toDate() 
+          createdAt: data.createdAt instanceof Timestamp
+            ? data.createdAt.toDate()
             : new Date(),
           createdBy: data.createdBy,
           createdByName: data.createdByName || "Anonymous"
         });
       });
-      
       setComments(fetchedComments);
-      
-      // Clear the interval and finish loading
-      setTimeout(() => {
-        clearInterval(interval);
-        setLoadingProgress(100);
-        setLoading(false);
-      }, 800);
-    } catch (error) {
+      setLoadingProgress(100);
+      setLoading(false);
+    }, (error) => {
       console.error("Error fetching comments:", error);
       toast({
         title: "Error",
@@ -87,13 +68,8 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
         variant: "destructive"
       });
       setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (showComments) {
-      fetchComments();
-    }
+    });
+    return () => unsubscribe();
   }, [alertId, showComments]);
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -125,9 +101,6 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
         title: "Comment added",
         description: "Your comment has been posted successfully"
       });
-      
-      // Refresh comments
-      fetchComments();
     } catch (error) {
       console.error("Error posting comment:", error);
       toast({
