@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Mail, Key, Save } from "lucide-react";
+import { User, Mail, Key, Save, Phone } from "lucide-react";
 import { updateProfile } from "firebase/auth";
 import { doc, updateDoc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -116,6 +116,11 @@ const Profile = () => {
       await updateDoc(doc(db, "users", user.uid), {
         alertPrefs: newPrefs,
       });
+      
+      toast({
+        title: "Preferences updated",
+        description: `${type === 'emailNotifications' || type === 'pushNotifications' ? 'Notification method' : 'Alert type'} preferences have been saved`,
+      });
     }
   };
 
@@ -135,7 +140,7 @@ const Profile = () => {
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Profile Settings</h1>
         <p className="text-muted-foreground">
-          Manage your account information
+          Manage your account information and notification preferences
         </p>
       </div>
 
@@ -199,20 +204,84 @@ const Profile = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cellphone">Cellphone Number</Label>
+                <Label htmlFor="cellphone" className="flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Cellphone Number
+                </Label>
                 <Input
                   id="cellphone"
                   value={cellphone}
                   onChange={handleCellphoneChange}
-                  placeholder="e.g. 0812345678"
+                  placeholder="e.g. +27812345678"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Your cellphone number is used for SMS alerts
+                  <strong>Important:</strong> SMS notifications will always be sent to this number when provided, regardless of your other notification preferences
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Alert Preferences */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Alert Preferences
+            </CardTitle>
+            <CardDescription>Choose which types of alerts you want to receive and how you want to receive them</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-6">
+              <div className="font-semibold mb-4">Alert Types</div>
+              <div className="space-y-4">
+                {alertTypes.map((alert) => (
+                  <div key={alert.key} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <div className="font-medium">{alert.label}</div>
+                      <div className="text-sm text-muted-foreground">{alert.description}</div>
+                    </div>
+                    <Switch
+                      checked={alertPrefs[alert.key as keyof typeof alertPrefs]}
+                      onCheckedChange={() => handleAlertToggle(alert.key)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <div className="font-semibold mb-4">Notification Methods</div>
+              <div className="space-y-4">
+                {notificationMethods.map((method) => (
+                  <div key={method.key} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <div className="font-medium">{method.label}</div>
+                      <div className="text-sm text-muted-foreground">{method.description}</div>
+                    </div>
+                    <Switch
+                      checked={alertPrefs[method.key as keyof typeof alertPrefs]}
+                      onCheckedChange={() => handleAlertToggle(method.key)}
+                    />
+                  </div>
+                ))}
+                
+                {/* SMS notification info */}
+                <div className="p-3 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-blue-600" />
+                    <div className="font-medium text-blue-900 dark:text-blue-100">SMS Notifications</div>
+                  </div>
+                  <div className="text-sm text-blue-700 dark:text-blue-200 mt-1">
+                    SMS notifications are automatically enabled when you provide a cellphone number above. 
+                    You will receive SMS alerts regardless of your other notification preferences.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Semester Timetable Upload */}
         <Card>
           <CardHeader>
@@ -240,52 +309,6 @@ const Profile = () => {
                 Ready to upload: {timetable.name}
               </div>
             ) : null}
-          </CardContent>
-        </Card>
-        {/* Alert Preferences */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {/* ...icon... */}
-              Alert Preferences
-            </CardTitle>
-            <CardDescription>Choose which types of alerts you want to receive</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <div className="font-semibold mb-2">Alert Types</div>
-              <div className="space-y-2">
-                {alertTypes.map((alert) => (
-                  <div key={alert.key} className="flex items-center justify-between">
-                    <div>
-                      <div>{alert.label}</div>
-                      <div className="text-xs text-muted-foreground">{alert.description}</div>
-                    </div>
-                    <Switch
-                      checked={alertPrefs[alert.key as keyof typeof alertPrefs]}
-                      onCheckedChange={() => handleAlertToggle(alert.key)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <div className="font-semibold mb-2">Notification Methods</div>
-              <div className="space-y-2">
-                {notificationMethods.map((method) => (
-                  <div key={method.key} className="flex items-center justify-between">
-                    <div>
-                      <div>{method.label}</div>
-                      <div className="text-xs text-muted-foreground">{method.description}</div>
-                    </div>
-                    <Switch
-                      checked={alertPrefs[method.key as keyof typeof alertPrefs]}
-                      onCheckedChange={() => handleAlertToggle(method.key)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
