@@ -85,16 +85,15 @@ const MyTimetable = () => {
         });
         return;
       }
-      
-      if (!file.type.startsWith('image/')) {
+      // Allow image/* and PDF
+      if (!(file.type.startsWith('image/') || file.type === 'application/pdf')) {
         toast({
           title: "Invalid file type",
-          description: "Please select an image file",
+          description: "Please select an image or PDF file",
           variant: "destructive"
         });
         return;
       }
-      
       setTimetableFile(file);
     }
   };
@@ -117,7 +116,6 @@ const MyTimetable = () => {
         description: "Your timetable has been saved successfully",
       });
     } catch (error) {
-      setIsUploading(false);
       setTimetableFile(null);
       toast({
         title: "Upload failed",
@@ -125,8 +123,9 @@ const MyTimetable = () => {
         variant: "destructive"
       });
       return;
+    } finally {
+      setIsUploading(false);
     }
-    setIsUploading(false);
   };
 
   const handleRemove = async () => {
@@ -189,7 +188,7 @@ const MyTimetable = () => {
                   onChange={handleFileSelect}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Supported formats: JPG, PNG, GIF (Max 5MB)
+                  Supported formats: JPG, PNG, GIF, PDF (Max 5MB)
                 </p>
               </div>
               

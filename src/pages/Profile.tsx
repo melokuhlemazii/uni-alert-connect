@@ -7,15 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { User, Mail, Key, Save } from "lucide-react";
 import { updateProfile } from "firebase/auth";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useToast } from "@/components/ui/use-toast";
 import { Switch } from "@/components/ui/switch";
 
 const alertTypes = [
-  { key: "exams", label: "Exam Alerts" },
-  { key: "assignments", label: "Assignment Alerts" },
-  { key: "events", label: "Event Alerts" },
+  { key: "examAlerts", label: "Exam Alerts", description: "Receive notifications about upcoming exams" },
+  { key: "testAlerts", label: "Test Alerts", description: "Receive notifications about tests and quizzes" },
+  { key: "assignmentAlerts", label: "Assignment Alerts", description: "Receive notifications about assignment deadlines" },
+  { key: "generalAlerts", label: "General Alerts", description: "Receive general announcements and updates" },
+];
+
+const notificationMethods = [
+  { key: "emailNotifications", label: "Email Notifications", description: "Receive alerts via email" },
+  { key: "pushNotifications", label: "Push Notifications", description: "Receive push notifications in your browser" },
 ];
 
 const Profile = () => {
@@ -29,10 +35,27 @@ const Profile = () => {
   const [timetableUrl, setTimetableUrl] = useState<string | null>(userData?.timetableUrl || null);
   const [removingTimetable, setRemovingTimetable] = useState(false);
   const [alertPrefs, setAlertPrefs] = useState({
-    exams: true,
-    assignments: true,
-    events: true,
+    examAlerts: true,
+    testAlerts: true,
+    assignmentAlerts: true,
+    generalAlerts: true,
+    emailNotifications: true,
+    pushNotifications: true,
   });
+
+  // Real-time sync of alertPrefs and cellphone from Firestore
+  React.useEffect(() => {
+    if (!userData?.uid) return;
+    const userDocRef = doc(db, "users", userData.uid);
+    const unsubscribe = onSnapshot(userDocRef, (userDoc) => {
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        if (data.alertPrefs) setAlertPrefs(data.alertPrefs);
+        if (data.cellphone) setCellphone(data.cellphone);
+      }
+    });
+    return () => unsubscribe();
+  }, [userData]);
 
   const handleUpdateProfile = async () => {
     if (!user) return;
@@ -82,12 +105,29 @@ const Profile = () => {
     setRemovingTimetable(false);
   };
 
-  const handleAlertToggle = (type: string) => {
-    setAlertPrefs((prev) => ({
-      ...prev,
-      [type]: !prev[type],
-    }));
-    // TODO: Save preferences to backend or local storage
+  // Save alertPrefs to Firestore on toggle
+  const handleAlertToggle = async (type: string) => {
+    const newPrefs = {
+      ...alertPrefs,
+      [type]: !alertPrefs[type],
+    };
+    setAlertPrefs(newPrefs);
+    if (user) {
+      await updateDoc(doc(db, "users", user.uid), {
+        alertPrefs: newPrefs,
+      });
+    }
+  };
+
+  // Save cellphone to Firestore in real-time
+  const handleCellphoneChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCellphone(value);
+    if (user) {
+      await updateDoc(doc(db, "users", user.uid), {
+        cellphone: value,
+      });
+    }
   };
 
   return (
@@ -163,7 +203,7 @@ const Profile = () => {
                 <Input
                   id="cellphone"
                   value={cellphone}
-                  onChange={e => setCellphone(e.target.value)}
+                  onChange={handleCellphoneChange}
                   placeholder="e.g. 0812345678"
                 />
                 <p className="text-sm text-muted-foreground">
@@ -205,20 +245,46 @@ const Profile = () => {
         {/* Alert Preferences */}
         <Card>
           <CardHeader>
-            <CardTitle>Alert Preferences</CardTitle>
-            <CardDescription>Choose which alerts you want to see or receive notifications for</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              {/* ...icon... */}
+              Alert Preferences
+            </CardTitle>
+            <CardDescription>Choose which types of alerts you want to receive</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {alertTypes.map((alert) => (
-                <div key={alert.key} className="flex items-center justify-between">
-                  <span>{alert.label}</span>
-                  <Switch
-                    checked={alertPrefs[alert.key as keyof typeof alertPrefs]}
-                    onCheckedChange={() => handleAlertToggle(alert.key)}
-                  />
-                </div>
-              ))}
+            <div className="mb-4">
+              <div className="font-semibold mb-2">Alert Types</div>
+              <div className="space-y-2">
+                {alertTypes.map((alert) => (
+                  <div key={alert.key} className="flex items-center justify-between">
+                    <div>
+                      <div>{alert.label}</div>
+                      <div className="text-xs text-muted-foreground">{alert.description}</div>
+                    </div>
+                    <Switch
+                      checked={alertPrefs[alert.key as keyof typeof alertPrefs]}
+                      onCheckedChange={() => handleAlertToggle(alert.key)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="font-semibold mb-2">Notification Methods</div>
+              <div className="space-y-2">
+                {notificationMethods.map((method) => (
+                  <div key={method.key} className="flex items-center justify-between">
+                    <div>
+                      <div>{method.label}</div>
+                      <div className="text-xs text-muted-foreground">{method.description}</div>
+                    </div>
+                    <Switch
+                      checked={alertPrefs[method.key as keyof typeof alertPrefs]}
+                      onCheckedChange={() => handleAlertToggle(method.key)}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
