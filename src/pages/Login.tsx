@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GraduationCap } from "lucide-react";
 import { useAuth } from "@/context/useAuth";
+import { useToast } from "@/components/ui/use-toast";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -20,6 +21,7 @@ const Login = () => {
   const { login, userData } = useAuth();
   const navigate = useNavigate();
   const [loginSuccess, setLoginSuccess] = useState(false);
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +32,12 @@ const Login = () => {
       setLoginSuccess(true); // Set flag to trigger redirect in useEffect
     } catch (error) {
       console.error("Login error:", error);
+      // Show user-friendly error message
+      toast({
+        title: "Login Failed",
+        description: "Invalid email or password. Please check your credentials and try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }

@@ -597,7 +597,7 @@ const Dashboard = () => {
               {modalData && (
                 <>
                   <DialogHeader>
-                    <DialogTitle>{modalData.title}</DialogTitle>
+                    <DialogTitle>{modalData?.title || "Details"}</DialogTitle>
                     <DialogDescription>
                       {modalData.moduleName && <span className="font-medium">{modalData.moduleName}</span>}
                       <span className="ml-2 text-xs text-muted-foreground">{modalData.isAlert ? format(modalData.createdAt, "MMM d, yyyy") : format(modalData.date, "MMM d, yyyy")}</span>
