@@ -1,60 +1,27 @@
 import React, { useState, useEffect } from "react";
-import { collection, query, orderBy, onSnapshot, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuth } from "@/context/useAuth";
+import { useRealTimeAlerts } from "@/hooks/useRealTimeAlerts";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import AlertComments from "@/components/AlertComments";
+import { AnimatedCard, FadeInUp } from "@/components/AnimatedCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { Bell, Info, AlertTriangle, BookOpen, Image } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { AlertItem } from "@/utils/alertsData";
 
 const AlertsPage = () => {
-  const { userData } = useAuth();
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { alerts, loading } = useRealTimeAlerts();
   const [progress, setProgress] = useState(10);
   const [filterType, setFilterType] = useState("all");
 
   useEffect(() => {
-    // Use Firestore real-time listener for alerts
-    const alertsRef = collection(db, "alerts");
-    const q = query(alertsRef, orderBy("createdAt", "desc"));
-    setLoading(true);
-    setProgress(10);
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const fetchedAlerts: AlertItem[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        fetchedAlerts.push({
-          id: doc.id,
-          title: data.title,
-          description: data.description,
-          type: data.type,
-          moduleId: data.moduleId,
-          moduleName: data.moduleName,
-          createdAt: data.createdAt instanceof Timestamp 
-            ? data.createdAt.toDate() 
-            : new Date(),
-          imageUrl: data.imageUrl || getDefaultImageForType(data.type)
-        });
-      });
-      setAlerts(fetchedAlerts);
+    if (!loading) {
       setProgress(100);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching alerts:", error);
-      import("@/utils/alertsData").then(({ demoAlerts }) => {
-        setAlerts(demoAlerts);
-        setLoading(false);
-      });
-    });
-    return () => unsubscribe();
-  }, [userData]);
+    }
+  }, [loading]);
 
   // Helper function to get default image based on alert type
   const getDefaultImageForType = (type: string) => {
@@ -90,10 +57,12 @@ const AlertsPage = () => {
   return (
     <DashboardLayout>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Alerts & Announcements</h1>
-        <p className="text-muted-foreground">
-          Stay updated with announcements from your modules
-        </p>
+        <FadeInUp>
+          <h1 className="text-3xl font-bold">Alerts & Announcements</h1>
+          <p className="text-muted-foreground">
+            Stay updated with announcements from your modules
+          </p>
+        </FadeInUp>
         {loading && (
           <div className="mt-4">
             <p className="text-sm text-muted-foreground mb-2">Loading alerts...</p>
@@ -102,7 +71,7 @@ const AlertsPage = () => {
         )}
       </div>
 
-      <Card>
+      <AnimatedCard delay={0.2}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5" /> Alerts
@@ -122,7 +91,7 @@ const AlertsPage = () => {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="space-y-4">
+            <motion.div className="space-y-4">
               {[1, 2, 3, 4].map(i => (
                 <div key={i} className="flex gap-4">
                   <Skeleton className="h-24 w-24 rounded-md" />
@@ -133,11 +102,19 @@ const AlertsPage = () => {
                   </div>
                 </div>
               ))}
-            </div>
+            </motion.div>
           ) : filteredAlerts.length > 0 ? (
-            <div className="space-y-4">
+            <AnimatePresence>
               {filteredAlerts.map(alert => (
-                <div key={alert.id} className="space-y-2">
+                <motion.div
+                  key={alert.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-2"
+                >
                   <Alert className="relative">
                     <div className="absolute right-4 top-4 text-xs text-muted-foreground">
                       {format(alert.createdAt, "MMM d, yyyy")}
@@ -185,16 +162,20 @@ const AlertsPage = () => {
                     </div>
                   </Alert>
                   <AlertComments alertId={alert.id} />
-                </div>
+                </motion.div>
               ))}
-            </div>
+            </AnimatePresence>
           ) : (
-            <p className="text-center text-muted-foreground py-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center text-muted-foreground py-6"
+            >
               No alerts matching the selected filter
-            </p>
+            </motion.div>
           )}
         </CardContent>
-      </Card>
+      </AnimatedCard>
     </DashboardLayout>
   );
 };

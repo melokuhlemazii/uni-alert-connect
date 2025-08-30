@@ -1,22 +1,25 @@
 import React, { useEffect, useState } from "react";
-import { collection, query, where, orderBy, limit, getDocs, Timestamp, doc, getDoc, setDoc } from "firebase/firestore";
+import { useRealTimeAlerts } from "@/hooks/useRealTimeAlerts";
+import { useRealTimeEvents } from "@/hooks/useRealTimeEvents";
+import { collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import { AnimatedCard, FadeInUp, ScaleIn } from "@/components/AnimatedCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Calendar, Bell, Info, Image } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { AlertItem, EventItem, upcomingEventsData } from "@/utils/alertsData";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import AlertComments from "@/components/AlertComments";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { UserPlus, CalendarPlus, Mail } from "lucide-react";
 import { BookOpen } from "lucide-react";
 
@@ -28,9 +31,8 @@ const alertTypes = [
 
 const Dashboard = () => {
   const { userData } = useAuth();
-  const [recentAlerts, setRecentAlerts] = useState<AlertItem[]>([]);
-  const [upcomingEvents, setUpcomingEvents] = useState<EventItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { alerts: recentAlerts, loading: alertsLoading } = useRealTimeAlerts();
+  const { events: upcomingEvents, loading: eventsLoading } = useRealTimeEvents();
   const [progress, setProgress] = useState(10);
   const [timetable, setTimetable] = useState<File | null>(null);
   const [timetableUrl, setTimetableUrl] = useState<string | null>(null);
@@ -44,8 +46,9 @@ const Dashboard = () => {
   // Add state for subscribed modules
   const [subscribedModules, setSubscribedModules] = useState([]);
   const [modulesLoading, setModulesLoading] = useState(true);
+  const loading = alertsLoading || eventsLoading || modulesLoading;
   // For event modal
-  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
   // For mark as read (demo, local state)
   const [readAlertIds, setReadAlertIds] = useState<string[]>([]);
   // For module search
@@ -56,108 +59,10 @@ const Dashboard = () => {
   const [modalData, setModalData] = useState(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Simulate loading progress
-        const interval = setInterval(() => {
-          setProgress((prev) => {
-            if (prev >= 100) {
-              clearInterval(interval);
-              return 100;
-            }
-            return prev + 10;
-          });
-        }, 200);
-
-        // Define the time window for "recent" alerts (e.g., last 7 days)
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        // Fetch real alerts from Firestore, only showing those from the last 7 days
-        const alertsRef = collection(db, "alerts");
-        const alertsQuery = query(alertsRef, where("createdAt", ">=", Timestamp.fromDate(sevenDaysAgo)), orderBy("createdAt", "desc"), limit(3));
-        const alertsSnapshot = await getDocs(alertsQuery);
-        
-        const fetchedAlerts: AlertItem[] = [];
-        alertsSnapshot.forEach((doc) => {
-          const data = doc.data();
-          fetchedAlerts.push({
-            id: doc.id,
-            title: data.title,
-            description: data.description,
-            type: data.type,
-            moduleId: data.moduleId,
-            moduleName: data.moduleName,
-            createdAt: data.createdAt instanceof Timestamp 
-              ? data.createdAt.toDate() 
-              : new Date(),
-            imageUrl: data.imageUrl || getDefaultImageForType(data.type)
-          });
-        });
-        
-        if (fetchedAlerts.length > 0) {
-          setRecentAlerts(fetchedAlerts);
-        } else {
-          // Fallback to demo data if no alerts found, filtering for recent
-          import("@/utils/alertsData").then(({ demoAlerts }) => {
-            const recentDemoAlerts = demoAlerts.filter(alert => alert.createdAt >= sevenDaysAgo);
-            setRecentAlerts(recentDemoAlerts.slice(0, 3));
-          });
-        }
-
-        // Fetch real events from Firestore, only showing future events
-        const eventsRef = collection(db, "events");
-        const eventsQuery = query(eventsRef, where("date", ">=", Timestamp.now()), orderBy("date"), limit(3));
-        const eventsSnapshot = await getDocs(eventsQuery);
-        
-        const fetchedEvents: EventItem[] = [];
-        eventsSnapshot.forEach((doc) => {
-          const data = doc.data();
-          fetchedEvents.push({
-            id: doc.id,
-            title: data.title,
-            date: data.date instanceof Timestamp 
-              ? data.date.toDate() 
-              : new Date(data.date),
-            type: data.type,
-            moduleId: data.moduleId,
-            moduleName: data.moduleName,
-            imageUrl: data.imageUrl || getDefaultImageForEvent(data.type)
-          });
-        });
-        
-        if (fetchedEvents.length > 0) {
-          setUpcomingEvents(fetchedEvents);
-        } else {
-          // Keep using demo data for events, but filter for future dates
-          const futureDemoEvents = upcomingEventsData.filter(event => event.date >= new Date());
-          setUpcomingEvents(futureDemoEvents);
-        }
-        
-        // Simulate network delay
-        setTimeout(() => {
-          clearInterval(interval);
-          setProgress(100);
-          setLoading(false);
-        }, 1200);
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-        // Use demo data as fallback, filtering for future events and recent alerts
-        import("@/utils/alertsData").then(({ demoAlerts }) => {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          const recentDemoAlerts = demoAlerts.filter(alert => alert.createdAt >= sevenDaysAgo);
-          setRecentAlerts(recentDemoAlerts.slice(0, 3));
-
-          const futureDemoEvents = upcomingEventsData.filter(event => event.date >= new Date());
-          setUpcomingEvents(futureDemoEvents);
-          setLoading(false);
-        });
-      }
-    };
-    
-    fetchData();
-  }, []);
+    if (!loading) {
+      setProgress(100);
+    }
+  }, [loading]);
 
   useEffect(() => {
     // Fetch subscribed modules for student
@@ -352,43 +257,73 @@ const Dashboard = () => {
               Here's what's happening with your modules
             </p>
             {/* --- Summary Cards --- */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 my-6">
+            <motion.div 
+              className="grid grid-cols-1 sm:grid-cols-3 gap-4 my-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ staggerChildren: 0.1, delayChildren: 0.2 }}
+            >
               {summaryCards.map(card => (
-                <Card
+                <motion.div
                   key={card.label}
-                  className={`flex items-center gap-4 p-4 shadow-sm transition-transform duration-200 hover:scale-105 hover:shadow-md ${card.color}`}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <Card
+                    className={`flex items-center gap-4 p-4 shadow-sm transition-all duration-200 hover:shadow-md ${card.color}`}
                   aria-label={card.aria}
                   tabIndex={0}
                   onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.click(); }}
-                >
+                  >
                   <div>{card.icon}</div>
                   <div>
-                    <div className="text-2xl font-bold animate-fade-in">{card.value}</div>
+                    <motion.div 
+                      className="text-2xl font-bold"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.5, type: "spring" }}
+                    >
+                      {card.value}
+                    </motion.div>
                     <div className="text-sm font-medium">{card.label}</div>
                   </div>
-                </Card>
+                  </Card>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
             {/* --- Quick Actions --- */}
             {userData?.role === "student" && (
-              <div className="flex gap-4 mb-6" aria-label="Quick Actions">
+              <motion.div 
+                className="flex gap-4 mb-6" 
+                aria-label="Quick Actions"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4, staggerChildren: 0.1 }}
+              >
                 {quickActions.map(action => (
-                  <Button
+                  <motion.div
                     key={action.label}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Button
                     variant="secondary"
                     className="flex items-center gap-2 shadow-sm hover:shadow-md transition-all"
                     onClick={action.onClick}
                     aria-label={action.aria}
-                  >
+                    >
                     {action.icon} {action.label}
-                  </Button>
+                    </Button>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
             {/* My Modules section for students */}
             {userData?.role === "student" && (
               <div className="mt-8 mb-6">
-                <Card>
+                <AnimatedCard delay={0.3}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <span role="img" aria-label="modules">📚</span> My Modules
@@ -397,31 +332,51 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent>
                     {modulesLoading ? (
-                      <p>Loading...</p>
+                      <motion.div
+                        animate={{ opacity: [0.5, 1, 0.5] }}
+                        transition={{ repeat: Infinity, duration: 1.5 }}
+                      >
+                        Loading modules...
+                      </motion.div>
                     ) : subscribedModules.length > 0 ? (
-                      <ul className="flex flex-wrap gap-3">
+                      <motion.ul 
+                        className="flex flex-wrap gap-3"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ staggerChildren: 0.1 }}
+                      >
                         {subscribedModules.map(module => (
                           <Tooltip key={module.id}>
                             <TooltipTrigger asChild>
-                              <li className="bg-gray-100 rounded px-3 py-1 text-sm font-medium flex items-center gap-2 cursor-pointer">
+                              <motion.li 
+                                className="bg-gray-100 rounded px-3 py-1 text-sm font-medium flex items-center gap-2 cursor-pointer hover:bg-gray-200 transition-colors"
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                whileHover={{ scale: 1.05 }}
+                                transition={{ duration: 0.2 }}
+                              >
                                 <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-200 text-indigo-700 font-bold text-xs">
                                   {module.code?.slice(0,2) || "M"}
                                 </span>
                                 {module.code} - {module.name}
-                              </li>
+                              </motion.li>
                             </TooltipTrigger>
                             <TooltipContent>{module.description}</TooltipContent>
                           </Tooltip>
                         ))}
-                      </ul>
+                      </motion.ul>
                     ) : (
-                      <div className="flex flex-col items-center gap-2 py-4">
+                      <motion.div 
+                        className="flex flex-col items-center gap-2 py-4"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                      >
                         <Image className="h-10 w-10 text-gray-300" />
                         <p className="text-muted-foreground">You are not subscribed to any modules.</p>
-                      </div>
+                      </motion.div>
                     )}
                   </CardContent>
-                </Card>
+                </AnimatedCard>
               </div>
             )}
             {loading && (
@@ -434,7 +389,7 @@ const Dashboard = () => {
 
           <div className="grid gap-6 md:grid-cols-2">
             {/* Recent Alerts */}
-            <Card>
+            <AnimatedCard delay={0.1}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Bell className="h-5 w-5" /> Recent Alerts
@@ -443,7 +398,11 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <div className="space-y-3">
+                  <motion.div 
+                    className="space-y-3"
+                    animate={{ opacity: [0.5, 1, 0.5] }}
+                    transition={{ repeat: Infinity, duration: 1.5 }}
+                  >
                     {[1, 2, 3].map(i => (
                       <div key={i} className="flex gap-3">
                         <Skeleton className="h-16 w-16 rounded-md animate-pulse" />
@@ -453,14 +412,19 @@ const Dashboard = () => {
                         </div>
                       </div>
                     ))}
-                  </div>
-                ) : filteredAlerts.length > 0 ? (
-                  <div className="space-y-4">
-                    {filteredAlerts.map(alert => (
-                      <div key={alert.id}>
+                  </motion.div>
+                ) : filteredAlerts.slice(0, 3).length > 0 ? (
+                  <AnimatePresence>
+                    {filteredAlerts.slice(0, 3).map((alert, index) => (
+                      <motion.div
+                        key={alert.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                      >
                         <Alert
-                          key={alert.id}
-                          className="relative cursor-pointer hover:shadow-md transition-all"
+                          className="relative cursor-pointer hover:shadow-md transition-all hover:bg-gray-50"
                           tabIndex={0}
                           aria-label={`View details for alert: ${alert.title}`}
                           onClick={() => { setModalData({ ...alert, isAlert: true }); setModalOpen(true); }}
@@ -499,23 +463,33 @@ const Dashboard = () => {
                           </div>
                         </Alert>
                         <AlertComments alertId={alert.id} />
-                      </div>
+                      </motion.div>
                     ))}
-                    <Button asChild variant="outline" size="sm" className="w-full">
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                    >
+                      <Button asChild variant="outline" size="sm" className="w-full">
                       <Link to="/alerts">View All Alerts</Link>
-                    </Button>
-                  </div>
+                      </Button>
+                    </motion.div>
+                  </AnimatePresence>
                 ) : (
-                  <div className="flex flex-col items-center gap-2 py-6">
+                  <motion.div 
+                    className="flex flex-col items-center gap-2 py-6"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
                     <Bell className="h-10 w-10 text-gray-300" />
                     <p className="text-center text-muted-foreground">No recent alerts</p>
-                  </div>
+                  </motion.div>
                 )}
               </CardContent>
-            </Card>
+            </AnimatedCard>
 
             {/* Upcoming Events */}
-            <Card>
+            <AnimatedCard delay={0.2}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" /> Upcoming Events
@@ -524,7 +498,11 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <div className="space-y-3">
+                  <motion.div 
+                    className="space-y-3"
+                    animate={{ opacity: [0.5, 1, 0.5] }}
+                    transition={{ repeat: Infinity, duration: 1.5 }}
+                  >
                     {[1, 2, 3].map(i => (
                       <div key={i} className="flex gap-3">
                         <Skeleton className="h-16 w-16 rounded-md animate-pulse" />
@@ -534,13 +512,17 @@ const Dashboard = () => {
                         </div>
                       </div>
                     ))}
-                  </div>
-                ) : filteredEvents.length > 0 ? (
-                  <div className="space-y-4">
-                    {filteredEvents.map(event => (
-                      <div
+                  </motion.div>
+                ) : filteredEvents.slice(0, 3).length > 0 ? (
+                  <AnimatePresence>
+                    {filteredEvents.slice(0, 3).map((event, index) => (
+                      <motion.div
                         key={event.id}
-                        className="flex gap-3 items-start border-b pb-3 last:border-0 cursor-pointer hover:shadow-md transition-all"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                        className="flex gap-3 items-start border-b pb-3 last:border-0 cursor-pointer hover:shadow-md hover:bg-gray-50 p-2 rounded transition-all"
                         tabIndex={0}
                         aria-label={`View details for event: ${event.title}`}
                         onClick={() => { setModalData({ ...event, isAlert: false }); setModalOpen(true); }}
@@ -575,36 +557,59 @@ const Dashboard = () => {
                             {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
                           </span>
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
-                    <Button asChild variant="outline" size="sm" className="w-full">
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                    >
+                      <Button asChild variant="outline" size="sm" className="w-full">
                       <Link to="/calendar">View Calendar</Link>
-                    </Button>
-                  </div>
+                      </Button>
+                    </motion.div>
+                  </AnimatePresence>
                 ) : (
-                  <div className="flex flex-col items-center gap-2 py-6">
+                  <motion.div 
+                    className="flex flex-col items-center gap-2 py-6"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
                     <Calendar className="h-10 w-10 text-gray-300" />
                     <p className="text-center text-muted-foreground">No upcoming events</p>
-                  </div>
+                  </motion.div>
                 )}
               </CardContent>
-            </Card>
+            </AnimatedCard>
           </div>
 
           {/* Details Modal for Alert/Event */}
           <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md" asChild>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.3 }}
+              >
               {modalData && (
                 <>
                   <DialogHeader>
-                    <DialogTitle>{modalData?.title || "Details"}</DialogTitle>
+                    <DialogTitle>{modalData?.title || "Event Details"}</DialogTitle>
                     <DialogDescription>
                       {modalData.moduleName && <span className="font-medium">{modalData.moduleName}</span>}
                       <span className="ml-2 text-xs text-muted-foreground">{modalData.isAlert ? format(modalData.createdAt, "MMM d, yyyy") : format(modalData.date, "MMM d, yyyy")}</span>
                     </DialogDescription>
                   </DialogHeader>
                   {modalData.imageUrl && (
-                    <img src={modalData.imageUrl} alt={modalData.title} className="w-full h-40 object-cover rounded mb-3" />
+                    <motion.img 
+                      src={modalData.imageUrl} 
+                      alt={modalData.title} 
+                      className="w-full h-40 object-cover rounded mb-3"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.2 }}
+                    />
                   )}
                   <div className="mb-2">
                     <span className="inline-block px-2 py-0.5 rounded text-xs font-medium mr-2 bg-indigo-100 text-indigo-800">
@@ -615,7 +620,12 @@ const Dashboard = () => {
                   <div className="mb-4">
                     {modalData.description}
                   </div>
-                  <div className="flex gap-2">
+                  <motion.div 
+                    className="flex gap-2"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
                     {modalData.isAlert && (
                       <Button size="sm" variant="secondary" onClick={() => { setModalOpen(false); }}>
                         Mark as Read
@@ -624,9 +634,10 @@ const Dashboard = () => {
                     <Button size="sm" variant="outline" onClick={() => setModalOpen(false)}>
                       Close
                     </Button>
-                  </div>
+                  </motion.div>
                 </>
               )}
+              </motion.div>
             </DialogContent>
           </Dialog>
         </TooltipProvider>

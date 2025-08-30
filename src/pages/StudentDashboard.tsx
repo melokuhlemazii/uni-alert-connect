@@ -1,33 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, doc, getDoc, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useRealTimeAlerts } from "@/hooks/useRealTimeAlerts";
+import { useRealTimeEvents } from "@/hooks/useRealTimeEvents";
 import { useAuth } from "@/context/useAuth";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import { AnimatedCard, FadeInUp, SlideInLeft } from "@/components/AnimatedCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { Bell, Calendar, BookOpen } from "lucide-react";
-import { Button } from "@/components/ui/button";
-
-interface AlertItem {
-  id: string;
-  title: string;
-  description: string;
-  type: string;
-  moduleId: string;
-  moduleName: string;
-  createdAt: Date;
-  imageUrl?: string;
-}
-
-interface EventItem {
-  id: string;
-  title: string;
-  date: Date;
-  type: string;
-  moduleId: string;
-  moduleName: string;
-  imageUrl?: string;
-}
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface Module {
   id: string;
@@ -38,17 +20,15 @@ interface Module {
 
 const StudentDashboard = () => {
   const { userData } = useAuth();
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [events, setEvents] = useState<EventItem[]>([]);
+  const { alerts, loading: alertsLoading } = useRealTimeAlerts();
+  const { events, loading: eventsLoading } = useRealTimeEvents();
   const [modules, setModules] = useState<Module[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [modulesLoading, setModulesLoading] = useState(true);
 
   useEffect(() => {
     if (!userData?.uid) return;
-    let unsubAlerts: (() => void) | null = null;
-    let unsubEvents: (() => void) | null = null;
     const fetchData = async () => {
-      setLoading(true);
+      setModulesLoading(true);
       // Fetch student module subscriptions
       const userSubsDoc = await getDoc(doc(db, "userSubscriptions", userData.uid));
       let subscribedModuleIds: string[] = [];
@@ -65,63 +45,24 @@ const StudentDashboard = () => {
       });
       const myModules = allModules.filter(m => subscribedModuleIds.includes(m.id));
       setModules(myModules);
-      // Real-time alerts for subscribed modules
-      unsubAlerts = onSnapshot(collection(db, "alerts"), (snapshot: QuerySnapshot<DocumentData>) => {
-        const fetchedAlerts: AlertItem[] = [];
-        snapshot.forEach(doc => {
-          const d = doc.data();
-          if (subscribedModuleIds.includes(d.moduleId) && d.type !== "event") {
-            fetchedAlerts.push({
-              id: doc.id,
-              title: d.title,
-              description: d.description,
-              type: d.type,
-              moduleId: d.moduleId,
-              moduleName: d.moduleName,
-              createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : new Date(),
-              imageUrl: d.imageUrl,
-            });
-          }
-        });
-        setAlerts(fetchedAlerts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-      });
-      // Real-time events for subscribed modules
-      unsubEvents = onSnapshot(collection(db, "alerts"), (snapshot: QuerySnapshot<DocumentData>) => {
-        const fetchedEvents: EventItem[] = [];
-        snapshot.forEach(doc => {
-          const d = doc.data();
-          if (subscribedModuleIds.includes(d.moduleId) && d.type === "event") {
-            fetchedEvents.push({
-              id: doc.id,
-              title: d.title,
-              date: d.scheduledDate?.toDate ? d.scheduledDate.toDate() : new Date(),
-              type: d.type,
-              moduleId: d.moduleId,
-              moduleName: d.moduleName,
-              imageUrl: d.imageUrl,
-            });
-          }
-        });
-        setEvents(fetchedEvents.sort((a, b) => a.date.getTime() - b.date.getTime()));
-        setLoading(false);
-      });
+      setModulesLoading(false);
     };
     fetchData();
-    return () => {
-      if (unsubAlerts) unsubAlerts();
-      if (unsubEvents) unsubEvents();
-    };
   }, [userData]);
 
+  const loading = alertsLoading || eventsLoading || modulesLoading;
   return (
     <DashboardLayout>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Welcome, {userData?.displayName}</h1>
-        <p className="text-muted-foreground">Here's your academic overview</p>
-      </div>
+      <FadeInUp>
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">Welcome, {userData?.displayName}</h1>
+          <p className="text-muted-foreground">Here's your academic overview</p>
+        </div>
+      </FadeInUp>
+      
       <div className="grid gap-6 md:grid-cols-2">
         {/* Academic Alerts */}
-        <Card>
+        <AnimatedCard delay={0.1}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5" /> Academic Alerts
@@ -130,24 +71,42 @@ const StudentDashboard = () => {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p>Loading...</p>
+              <motion.div
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
+                Loading alerts...
+              </motion.div>
             ) : alerts.length > 0 ? (
-              <ul className="space-y-3">
+              <AnimatePresence>
                 {alerts.map(alert => (
-                  <li key={alert.id} className="border-b pb-2 last:border-0">
+                  <motion.li
+                    key={alert.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.3 }}
+                    className="border-b pb-2 last:border-0 hover:bg-gray-50 p-2 rounded transition-colors"
+                  >
                     <div className="font-medium">{alert.title} <span className="text-xs text-muted-foreground">({alert.moduleName})</span></div>
                     <div className="text-sm text-muted-foreground">{alert.description}</div>
                     <div className="text-xs text-gray-400">{format(alert.createdAt, "MMM d, yyyy")}</div>
-                  </li>
+                  </motion.li>
                 ))}
-              </ul>
+              </AnimatePresence>
             ) : (
-              <p className="text-muted-foreground">No alerts for your modules.</p>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-muted-foreground"
+              >
+                No alerts for your modules.
+              </motion.p>
             )}
           </CardContent>
-        </Card>
+        </AnimatedCard>
         {/* Academic Events */}
-        <Card>
+        <AnimatedCard delay={0.2}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" /> Upcoming Events
@@ -156,25 +115,44 @@ const StudentDashboard = () => {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p>Loading...</p>
+              <motion.div
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
+                Loading events...
+              </motion.div>
             ) : events.length > 0 ? (
-              <ul className="space-y-3">
+              <AnimatePresence>
                 {events.map(event => (
-                  <li key={event.id} className="border-b pb-2 last:border-0">
+                  <motion.li
+                    key={event.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.3 }}
+                    className="border-b pb-2 last:border-0 hover:bg-gray-50 p-2 rounded transition-colors"
+                  >
                     <div className="font-medium">{event.title} <span className="text-xs text-muted-foreground">({event.moduleName})</span></div>
                     <div className="text-xs text-gray-400">{format(event.date, "MMM d, yyyy HH:mm")}</div>
-                  </li>
+                  </motion.li>
                 ))}
-              </ul>
+              </AnimatePresence>
             ) : (
-              <p className="text-muted-foreground">No upcoming events for your modules.</p>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-muted-foreground"
+              >
+                No upcoming events for your modules.
+              </motion.p>
             )}
           </CardContent>
-        </Card>
+        </AnimatedCard>
       </div>
       {/* Subscribed Modules */}
       <div className="mt-8">
-        <Card>
+        <SlideInLeft delay={0.3}>
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BookOpen className="h-5 w-5" /> My Modules
@@ -182,12 +160,29 @@ const StudentDashboard = () => {
             <CardDescription>Modules you are subscribed to</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <p>Loading...</p>
+            {modulesLoading ? (
+              <motion.div
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
+                Loading modules...
+              </motion.div>
             ) : modules.length > 0 ? (
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              <motion.div 
+                className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ staggerChildren: 0.1 }}
+              >
                 {modules.map(module => (
-                  <Card key={module.id} className="shadow-sm border border-gray-200">
+                  <motion.div
+                    key={module.id}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Card className="shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                     <CardContent className="p-4 flex flex-col items-start">
                       <div className="font-semibold text-base mb-1">{module.name}</div>
                       <div className="text-xs text-muted-foreground mb-2">{module.code}</div>
@@ -195,14 +190,22 @@ const StudentDashboard = () => {
                         <div className="text-xs text-gray-400 line-clamp-2">{module.description}</div>
                       )}
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             ) : (
-              <p className="text-muted-foreground">You are not subscribed to any modules.</p>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-muted-foreground"
+              >
+                You are not subscribed to any modules.
+              </motion.p>
             )}
           </CardContent>
-        </Card>
+          </Card>
+        </SlideInLeft>
       </div>
     </DashboardLayout>
   );

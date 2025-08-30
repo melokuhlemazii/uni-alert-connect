@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { 
   Card,
   CardContent,
@@ -64,18 +65,38 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md shadow-lg">
+    <motion.div 
+      className="min-h-screen flex items-center justify-center bg-gray-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      >
+        <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-2">
+          <motion.div 
+            className="flex justify-center mb-2"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+          >
             <GraduationCap className="h-12 w-12 text-indigo-600" />
-          </div>
+          </motion.div>
           <CardTitle className="text-3xl font-bold">Create Account</CardTitle>
           <CardDescription>Join our learning platform</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
+            <motion.div 
+              className="space-y-2"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 }}
+            >
               <Label htmlFor="fullName">Full Name</Label>
               <Input 
                 id="fullName" 
@@ -85,8 +106,13 @@ const Register = () => {
                 required 
               />
               {errors.fullName && <p className="text-red-600 text-xs mt-1">{errors.fullName}</p>}
-            </div>
-            <div className="space-y-2">
+            </motion.div>
+            <motion.div 
+              className="space-y-2"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.5 }}
+            >
               <Label htmlFor="email">Email</Label>
               <Input 
                 id="email" 
@@ -97,8 +123,13 @@ const Register = () => {
                 required 
               />
               {errors.email && <p className="text-red-600 text-xs mt-1">{errors.email}</p>}
-            </div>
-            <div className="space-y-2">
+            </motion.div>
+            <motion.div 
+              className="space-y-2"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.6 }}
+            >
               <Label htmlFor="password">Password</Label>
               <Input 
                 id="password" 
@@ -108,8 +139,13 @@ const Register = () => {
                 required 
               />
               {errors.password && <p className="text-red-600 text-xs mt-1">{errors.password}</p>}
-            </div>
-            <div className="space-y-2">
+            </motion.div>
+            <motion.div 
+              className="space-y-2"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.7 }}
+            >
               <Label htmlFor="role">Role</Label>
               <Select 
                 value={role} 
@@ -124,21 +160,33 @@ const Register = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <Button 
-              type="submit" 
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
-              disabled={isLoading}
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
             >
+              <Button 
+              type="submit" 
+              className="w-full bg-indigo-600 hover:bg-indigo-700 transition-all duration-200"
+              disabled={isLoading}
+              >
               {isLoading ? "Registering..." : "Register"}
-            </Button>
+              </Button>
+            </motion.div>
           </form>
-          <div className="mt-4 text-center">
+          <motion.div 
+            className="mt-4 text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.9 }}
+          >
             <p>Already have an account? <Link to="/login" className="text-indigo-600 hover:underline">Sign in here</Link></p>
-          </div>
+          </motion.div>
         </CardContent>
-      </Card>
-    </div>
+        </Card>
+      </motion.div>
+    </motion.div>
   );
 };
 

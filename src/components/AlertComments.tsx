@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/useAuth";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp } from "firebase/firestore";
@@ -130,7 +131,13 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
 
       {showComments && (
         <>
-          <form onSubmit={handleSubmitComment} className="flex gap-2">
+          <motion.form 
+            onSubmit={handleSubmitComment} 
+            className="flex gap-2"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
             <Textarea
               placeholder={userData ? "Add a comment..." : "Please log in to comment"}
               value={newComment}
@@ -138,20 +145,29 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
               className="min-h-20"
               disabled={!userData}
             />
-            <Button 
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Button 
               type="submit" 
               size="icon"
               disabled={!newComment.trim() || isSubmitting || !userData}
               className="self-end"
-            >
+              >
               <Send className="h-4 w-4" />
               {isSubmitting && <span className="sr-only">Submitting...</span>}
-            </Button>
-          </form>
+              </Button>
+            </motion.div>
+          </motion.form>
 
           <div className="space-y-4 mt-4">
             {loading ? (
-              <div className="space-y-4">
+              <motion.div 
+                className="space-y-4"
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
                 <div className="w-full">
                   <Progress value={loadingProgress} className="h-1 mb-2" />
                   <p className="text-xs text-muted-foreground">Loading comments...</p>
@@ -166,10 +182,18 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
                     <Skeleton className="h-3 w-16" />
                   </div>
                 ))}
-              </div>
+              </motion.div>
             ) : comments.length > 0 ? (
-              comments.map((comment) => (
-                <div key={comment.id} className="flex gap-3 p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+              <AnimatePresence>
+                {comments.map((comment, index) => (
+                  <motion.div
+                    key={comment.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                    className="flex gap-3 p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>
                       {comment.createdByName.substring(0, 2).toUpperCase()}
@@ -184,12 +208,18 @@ const AlertComments = ({ alertId }: AlertCommentsProps) => {
                     </div>
                     <p className="text-sm mt-1">{comment.text}</p>
                   </div>
-                </div>
-              ))
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             ) : (
-              <p className="text-sm text-center text-muted-foreground py-4">
+              <motion.p 
+                className="text-sm text-center text-muted-foreground py-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
                 No comments yet. Be the first to comment!
-              </p>
+              </motion.p>
             )}
           </div>
         </>
